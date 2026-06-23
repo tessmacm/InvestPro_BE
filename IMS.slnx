@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Backend/">
+    <Project Path="IMS.API/IMS.API.csproj">
+      <BuildDependency Project="IMS.Core/IMS.Core.csproj" />
+      <BuildDependency Project="IMS.Data/IMS.Persistance.csproj" />
+    </Project>
+    <Project Path="IMS.Core/IMS.Core.csproj" />
+    <Project Path="IMS.Data/IMS.Persistance.csproj" />
+  </Folder>
+</Solution>
