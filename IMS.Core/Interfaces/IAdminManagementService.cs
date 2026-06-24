@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using IMS.Core.Entities;
@@ -9,7 +9,7 @@ public interface IAdminManagementService
 {
     // Returns a lightweight structural layout instead of the heavy Identity User object
     Task<IEnumerable<AdminUserSummaryDTO>> GetAllAdminUsersAsync();
-    Task<bool> CreateAdminUserAsync(CreateAdminUserDTO createDto);
+    Task<(bool Succeeded, string[] Errors)> CreateAdminUserAsync(CreateAdminUserDTO createDto);
     Task<bool> UpdateAdminUserDetailsAsync(string userId, UpdateAdminUserDTO updateDto);
     Task<bool> UpdateAdminUserStatusAsync(string userId, UpdateAdminUserStatusDTO statusDto);
     Task<bool> UpdateAdminUserRoleAsync(string userId, UpdateAdminUserRoleDTO roleDto);

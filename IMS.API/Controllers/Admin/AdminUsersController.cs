@@ -1,4 +1,4 @@
-﻿using IMS.Core.Interfaces;
+using IMS.Core.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -29,10 +29,10 @@ public class AdminUsersController : ControllerBase
     [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "SuperAdminOnly")] // Only allow Admin role to access this controller
     public async Task<IActionResult> CreateAdminUser([FromBody] CreateAdminUserDTO createDto)
     {
-        var result = await _adminService.CreateAdminUserAsync(createDto);
-        if (result)
+        var (succeeded, errors) = await _adminService.CreateAdminUserAsync(createDto);
+        if (succeeded)
             return Ok(new { Message = "Admin user created successfully." });
-        return BadRequest(new { Message = "Failed to create admin user." });
+        return BadRequest(new { Message = "Failed to create admin user.", Errors = errors });
     }
 
     [HttpPut("{Id}/role")]

@@ -34,7 +34,7 @@ public class AdminManagementService : IAdminManagementService
             IsActive = a.IsActive,
         }).ToList();
     }
-    public async Task<bool> CreateAdminUserAsync(CreateAdminUserDTO createDto)
+    public async Task<(bool Succeeded, string[] Errors)> CreateAdminUserAsync(CreateAdminUserDTO createDto)
     {
         var adminUser = new ApplicationUser
         {
@@ -50,10 +50,14 @@ public class AdminManagementService : IAdminManagementService
 
         if (result.Succeeded)
         {
-            await _userManager.AddToRoleAsync(adminUser, "admin");
-            return true;
+            var roleResult = await _userManager.AddToRoleAsync(adminUser, "admin");
+            if (roleResult.Succeeded)
+            {
+                return (true, Array.Empty<string>());
+            }
+            return (false, roleResult.Errors.Select(e => e.Description).ToArray());
         }
-        return false;
+        return (false, result.Errors.Select(e => e.Description).ToArray());
     }
     public async Task<bool> UpdateAdminUserDetailsAsync(string userId, UpdateAdminUserDTO updateDto)
     {
