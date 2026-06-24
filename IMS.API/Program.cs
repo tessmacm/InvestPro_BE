@@ -125,9 +125,14 @@ using (var scope = app.Services.CreateScope())
 
     if (userExist == null)
     {
-        var saUser = new ApplicationUser() { UserName = adminUser, Email = adminUser };
+        var saUser = new ApplicationUser() { UserName = adminUser, Email = adminUser, EmailConfirmed = true };
         var userResult = userManager.CreateAsync(saUser,adminPassword).Result;
         var defaultRoleResult = userManager.AddToRoleAsync(saUser, adminDefaultRole).Result;
+    }
+    else if (!userExist.EmailConfirmed)
+    {
+        userExist.EmailConfirmed = true;
+        var updateResult = userManager.UpdateAsync(userExist).Result;
     }
 
     #endregion 
