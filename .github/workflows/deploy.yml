@@ -1,0 +1,37 @@
+name: Deploy ASP.NET Core API to Azure
+
+on:
+  push:
+    branches:
+      - main  # Triggers the pipeline when you push to the main branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Fetch the latest code from GitHub
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 2. Setup the .NET SDK environment
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x' # Change to '9.0.x' if you are using .NET 9
+
+    # 3. Restore NuGet dependencies
+    - name: Restore Dependencies
+      run: dotnet restore
+
+    # 4. Compile and package the app into a release folder
+    - name: Build and Publish Web API
+      run: dotnet publish src/IMS.API.csproj -c Release -o ./publish
+
+    # 5. Deploy the compiled package directly to Azure App Service
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: 'investpro-api'
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: './publish'
