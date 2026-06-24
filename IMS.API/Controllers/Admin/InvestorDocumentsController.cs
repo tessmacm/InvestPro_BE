@@ -1,4 +1,6 @@
-﻿using IMS.Core.Interfaces;
+using IMS.Core.Interfaces;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -10,6 +12,7 @@ namespace IMS.API.Controllers.Admin
 {
     [Route("api/admin/documents")]
     [ApiController]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")]
     public class InvestorDocumentsController : ControllerBase
     {
         private readonly IInvestorDocumentService _documentService;
@@ -22,14 +25,14 @@ namespace IMS.API.Controllers.Admin
         [HttpGet]
         public async Task<IActionResult> GetAllInvestorDocs()
         {
-            var investDocs = _documentService.GetAllInvestorDocs();
+            var investDocs = await _documentService.GetAllInvestorDocs();
             return Ok(investDocs);
         }
 
-        [HttpGet("/{id}")]
+        [HttpGet("{id}")]
         public async Task<IActionResult> GetInvestorDocs(int id)
         {
-            var investDocs = _documentService.GetInvestorDocsByInvestorIdAsync(id);
+            var investDocs = await _documentService.GetInvestorDocsByInvestorIdAsync(id);
             return Ok(investDocs);
         }
 
@@ -45,7 +48,7 @@ namespace IMS.API.Controllers.Admin
             
             dto.Uploaded_By = adminUserId;
 
-            var success = _documentService.UploadDocumentMetadataAsync(id, dto);
+            var success = await _documentService.UploadDocumentMetadataAsync(id, dto);
             return Ok(new { message = "Document uploaded successfully." });
   
         }

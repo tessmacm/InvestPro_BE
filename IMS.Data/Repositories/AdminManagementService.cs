@@ -1,4 +1,4 @@
-﻿using IMS.Core.Interfaces;
+using IMS.Core.Interfaces;
 using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Identity;
 using System;
@@ -20,7 +20,10 @@ public class AdminManagementService : IAdminManagementService
 
     public async Task<IEnumerable<AdminUserSummaryDTO>> GetAllAdminUsersAsync()
     {
-        var rawAdmins = await _userManager.GetUsersInRoleAsync("admin");
+        var admins = await _userManager.GetUsersInRoleAsync("admin");
+        var superAdmins = await _userManager.GetUsersInRoleAsync("superadmin");
+        
+        var rawAdmins = admins.Concat(superAdmins).GroupBy(u => u.Id).Select(g => g.First()).ToList();
 
         return rawAdmins.Select(a => new AdminUserSummaryDTO
         {
@@ -47,7 +50,7 @@ public class AdminManagementService : IAdminManagementService
 
         if (result.Succeeded)
         {
-            await _userManager.AddToRoleAsync(adminUser, "Admin");
+            await _userManager.AddToRoleAsync(adminUser, "admin");
             return true;
         }
         return false;
@@ -74,7 +77,7 @@ public class AdminManagementService : IAdminManagementService
 
         if (result.Succeeded)
         {
-            await _userManager.AddToRoleAsync(adminUser, updateDto.Role);
+            await _userManager.AddToRoleAsync(adminUser, updateDto.Role.ToLowerInvariant());
             return true;
         }
         return false;
@@ -105,7 +108,7 @@ public class AdminManagementService : IAdminManagementService
         {
             return false;
         }
-        var addResult = await _userManager.AddToRoleAsync(adminUser, roleDto.Role);
+        var addResult = await _userManager.AddToRoleAsync(adminUser, roleDto.Role.ToLowerInvariant());
         return addResult.Succeeded;
     }
 

@@ -1,4 +1,4 @@
-﻿using IMS.API.Services.EmailService;
+using IMS.API.Services.EmailService;
 using IMS.Core.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +9,7 @@ namespace IMS.API.Controllers.Admin
 {
     [Route("api/admin/investors")]
     [ApiController]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Super-admin")] // Only allow Admin role to access this controller
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")] // Only allow Admin role to access this controller
     public class AdminInvestorController : ControllerBase
     {
         private readonly IInvestorManagementService _investorService;
