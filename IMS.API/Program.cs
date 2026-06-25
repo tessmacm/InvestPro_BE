@@ -1,5 +1,6 @@
 using IMS.API.Services.EmailService;
 using IMS.Core.Interfaces;
+using IMS.Core.Entities;
 using IMS.Persistance.Data;
 using IMS.Persistance.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -79,7 +80,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(conString));
+    options.UseSqlServer(conString)
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 builder.Services.AddIdentity<ApplicationUser,IdentityRole>()
                 .AddEntityFrameworkStores<ApplicationDbContext>()
                 .AddDefaultTokenProviders();
@@ -136,6 +138,84 @@ using (var scope = app.Services.CreateScope())
     }
 
     #endregion 
+
+    #region Custom Seed Data (Projects, Investors, Documents)
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    
+    // Seed Projects
+    if (!dbContext.Projects.Any())
+    {
+        dbContext.Projects.AddRange(
+            new Project { Title = "InvestPro Mobile App", Description = "A modern mobile application for investors to track portfolios.", TargetFunding = 250000, FundedAmount = 0, LaunchDate = new DateTime(2024, 5, 1), Status = "Open" },
+            new Project { Title = "Investor Dashboard Redesign", Description = "Revamping the client-facing investor dashboard with modern UI/UX components.", TargetFunding = 180000, FundedAmount = 0, LaunchDate = new DateTime(2024, 4, 10), Status = "Open" },
+            new Project { Title = "Payment Gateway Integration", Description = "Enable multi-currency seamless deposits and withdrawals.", TargetFunding = 300000, FundedAmount = 0, LaunchDate = new DateTime(2024, 2, 5), Status = "Open" }
+        );
+        dbContext.SaveChanges();
+    }
+
+    // Seed an Investor
+    if (!dbContext.Investors.Any())
+    {
+        var userManagerInstance = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var investorEmail = "john@example.com";
+        var investorUser = userManagerInstance.FindByEmailAsync(investorEmail).Result;
+        
+        if (investorUser == null)
+        {
+            investorUser = new ApplicationUser
+            {
+                UserName = investorEmail,
+                Email = investorEmail,
+                FirstName = "John",
+                LastName = "Doe",
+                EmailConfirmed = true,
+                PhoneNumber = "+1234567890",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            var createRes = userManagerInstance.CreateAsync(investorUser, "Password123!").Result;
+            if (createRes.Succeeded)
+            {
+                userManagerInstance.AddToRoleAsync(investorUser, "Investor").Wait();
+                
+                var investor = new Investor
+                {
+                    OwnerUserId = investorUser.Id,
+                    DateOfBirth = DateTime.UtcNow.AddYears(-25),
+                    TaxIdOrSSN = "United States",
+                    LegalBusinessName = "Doe Holdings LLC",
+                    CompanyRegistrationNo = "REG-993812",
+                    AuthorizedSignerName = "Accredited",
+                    CapitalAmount = 500000,
+                    Notes = "Venture Capital",
+                    InvestorTypeId = 1,
+                    InvestmentInterestId = 3
+                };
+                dbContext.Investors.Add(investor);
+                dbContext.SaveChanges();
+
+                investorUser.InvestorId = investor.InvestorId;
+                userManagerInstance.UpdateAsync(investorUser).Wait();
+                
+                // Seed a Document for this investor
+                var adminUserObj = userManagerInstance.FindByEmailAsync(adminUser).Result;
+                var adminId = adminUserObj?.Id;
+                dbContext.InvestorDocuments.Add(new InvestorDocument
+                {
+                    InvestorId = investor.InvestorId ?? 1,
+                    Title = "Passport Verification",
+                    DocumentType = "PDF",
+                    Size = 1.2m,
+                    StorageUrl = "#",
+                    UploadedById = adminId ?? investorUser.Id,
+                    UploadedAt = DateTime.UtcNow.AddDays(-2),
+                    Status = "Approved"
+                });
+                dbContext.SaveChanges();
+            }
+        }
+    }
+    #endregion
 }
 
 // Default Settings goes here Roles, Admin, etd.

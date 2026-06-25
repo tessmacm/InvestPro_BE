@@ -1,4 +1,4 @@
-﻿using IMS.Core.Entities;
+using IMS.Core.Entities;
 using IMS.Core.Interfaces;
 using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Identity;
@@ -33,125 +33,177 @@ public class InvestorManagementService : IInvestorManagementService
 
     public async Task<bool> DeleteInvestorProfileAsync(int profileId)
     {
-        //// 1. Fetch the investor profile record along with any tracking collections if needed
-        //var investor = await _context.Investors
-        //    .Include(i => i.Commitments)
-        //    .FirstOrDefaultAsync(i => i.InvestorId == profileId);
+        var investor = await _context.Investors
+            .Include(i => i.Commitments)
+            .Include(i => i.Documents)
+            .FirstOrDefaultAsync(i => i.InvestorId == profileId);
 
-        //if (investor == null) return false;
+        if (investor == null) return false;
 
-        //// 2. FINANCIAL GUARDRAIL: Check for historical data footprints
+        // Delete commitments and documents first to prevent FK constraint issues
+        if (investor.Commitments != null && investor.Commitments.Any())
+        {
+            _context.InvestorCommitments.RemoveRange(investor.Commitments);
+        }
 
-        //if (investor.Commitments!=null && investor.Commitments.Any())
-        //{
-        //    // OPTION A: SOFT DELETE / FREEZE (Highly Recommended for Auditing)
-        //    // If they have investments, we do not delete them. We block access instead.
+        if (investor.Documents != null && investor.Documents.Any())
+        {
+            _context.InvestorDocuments.RemoveRange(investor.Documents);
+        }
 
-        //    if (!string.IsNullOrEmpty(investor.OwnerUserId))
-        //    {
-        //        var userAccount = await _userManager.FindByIdAsync(investor.OwnerUserId);
+        var userId = investor.OwnerUserId;
+        _context.Investors.Remove(investor);
+        await _unitOfWork.CompleteAsync();
 
-        //        if (userAccount!=null)
-        //        {
-        //            userAccount.IsActive = false; // Freeze system login capability
-        //            await _userManager.UpdateAsync(userAccount);
-        //        }
-        //    }
-        //}
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var userAccount = await _userManager.FindByIdAsync(userId);
+            if (userAccount != null)
+            {
+                await _userManager.DeleteAsync(userAccount);
+            }
+        }
 
         return true;
     }
 
     public async Task<IEnumerable<InvestorSummaryDTO>> GetAllInvestorsAsync()
     {
-        return await _userManager.Users
-            .Where(u => u.InvestorId != null) // Filter to only users linked to investors
-            .Select(u => new InvestorSummaryDTO
-            {
-                OwnerUserId = u.Id,
-                Email = u.Email!,
-                FullName = $"{u.FirstName} {u.LastName}".Trim(),
-                InvestorId = u.InvestorId ?? 0, // Safe fallback, though should never be null here
-                IsActive = u.IsActive, // Assuming all users with an investor profile are active; adjust as needed
-                InvestorTypeName = u.InvestorNav!.InvestorTypeNav!.Name, // Custom method to fetch type name
-                InvestmentRange = u.InvestorNav.InvestmentInterestNav!.DisplayRange // Custom method to fetch range
-            })
+        var investors = await _context.Investors
+            .Include(i => i.InvestorTypeNav)
+            .Include(i => i.InvestmentInterestNav)
             .ToListAsync();
+
+        var list = new List<InvestorSummaryDTO>();
+        foreach (var inv in investors)
+        {
+            var user = await _userManager.FindByIdAsync(inv.OwnerUserId ?? "");
+            list.Add(new InvestorSummaryDTO
+            {
+                id = inv.InvestorId ?? 0,
+                name = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "Unknown",
+                email = user?.Email ?? "",
+                mobile = user?.PhoneNumber ?? "",
+                type = inv.InvestorTypeNav?.Name ?? "Individual",
+                organization = inv.LegalBusinessName ?? "—",
+                amount = inv.CapitalAmount ?? 0,
+                reg_number = inv.CompanyRegistrationNo ?? "—",
+                interest = inv.Notes ?? "—",
+                accreditation = inv.AuthorizedSignerName ?? "Accredited",
+                country = inv.TaxIdOrSSN ?? "—",
+                status = (user?.IsActive ?? true) ? "active" : "inactive",
+                date_of_onboarding = user?.CreatedAt.ToString("dd MMM yyyy") ?? "15 May 2024"
+            });
+        }
+        return list;
     }
 
     public async Task<InvestorRegistrationResponse> RegisterAndCreateInvestorAsync(RegisterInvestorDTO dto)
     {
         // Step 1: Initialize Identity User First
+        var names = (dto.name ?? "").Split(' ');
+        var firstName = names.FirstOrDefault() ?? "Investor";
+        var lastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "User";
 
         var identityUser = new ApplicationUser
         {
-            UserName = dto.Email,
-            Email = dto.Email,
-            FirstName = dto.FullName.Split(' ').FirstOrDefault() ?? dto.FullName,
-            LastName = dto.FullName.Split(' ').LastOrDefault() ?? "Investor",
+            UserName = dto.email,
+            Email = dto.email,
+            FirstName = firstName,
+            LastName = lastName,
+            PhoneNumber = dto.mobile,
+            IsActive = dto.status != "inactive"
         };
 
-        var identityResult = await _userManager.CreateAsync(identityUser, dto.Password);
+        var pwd = string.IsNullOrEmpty(dto.password) ? "Password123!" : dto.password;
+        var identityResult = await _userManager.CreateAsync(identityUser, pwd);
 
         if (!identityResult.Succeeded)
         {
-            var error = identityResult.Errors.FirstOrDefault()!.Description ?? "Idenity Creation is failed";
-            return new InvestorRegistrationResponse { IsSuccess = false, ErrorMessage = error};
-;        }
+            var error = identityResult.Errors.FirstOrDefault()?.Description ?? "Identity Creation failed";
+            return new InvestorRegistrationResponse { IsSuccess = false, ErrorMessage = error };
+        }
 
         await _userManager.AddToRoleAsync(identityUser, "Investor");
 
-        // Step 2: Create a New Domain Investor row safely with the authenticated cross-layer link Id
+        // Step 2: Create Investor entity
         var newInvestor = new Investor
         {
             OwnerUserId = identityUser.Id,
             DateOfBirth = DateTime.UtcNow.AddYears(-18),
-            TaxIdOrSSN = "PENDING_KYC",   // Flag to indicate details are missing
-
-            LegalBusinessName = "Business",
-            CompanyRegistrationNo = "UK123",
-            AuthorizedSignerName = "Authorized",
-            CapitalAmount = 0,
-            Notes = "Public Web Registration Profile Stub",
-            InvestorTypeId = 1,          // Defaulting strictly to "Individual"
-            InvestmentInterestId = 1,    // Defaulting to "Unspecified / Under Evaluation"
+            TaxIdOrSSN = dto.country ?? "—",
+            LegalBusinessName = dto.organization ?? "—",
+            CompanyRegistrationNo = dto.reg_number ?? "—",
+            AuthorizedSignerName = dto.accreditation ?? "Accredited",
+            CapitalAmount = dto.amount,
+            Notes = dto.interest ?? "—",
+            InvestorTypeId = dto.type == "Business" ? 2 : 1,
+            InvestmentInterestId = dto.amount < 100000 ? 1 : (dto.amount < 500000 ? 2 : (dto.amount < 1000000 ? 3 : 4))
         };
 
-        // Save via Repository Pattern Unit of Work
-        var investor = _unitOfWork.Investors.AddAsync(newInvestor);
+        // Save via Unit of Work
+        await _context.Investors.AddAsync(newInvestor);
+        await _unitOfWork.CompleteAsync();
 
-        if (!investor.IsCompletedSuccessfully)
-        {
-            await _userManager.DeleteAsync(identityUser);
-            await _userManager.RemoveFromRoleAsync(identityUser,"Investor");
-            return new InvestorRegistrationResponse { IsSuccess = false, ErrorMessage = "Investor creation failsed." };
-
-        }
-        await _unitOfWork.CompleteAsync(); 
-
-        // Step 3: Backward link the InvestorId reference back to Identity to sync your data contexts
+        // Step 3: Backward link the InvestorId reference
         identityUser.InvestorId = newInvestor.InvestorId;
         await _userManager.UpdateAsync(identityUser);
 
-        // Step 4: Generate a verification token (for email confirmation, etc.)
+        // Step 4: Generate token
         var rawToken = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
 
-        // Step 6: Return the registration response with all relevant details
         return new InvestorRegistrationResponse
         {
             IsSuccess = true,
-            Email = identityUser.Email! ?? string.Empty,
+            Email = identityUser.Email ?? string.Empty,
             FullName = $"{identityUser.FirstName} {identityUser.LastName}".Trim(),
-            InvestorId = (int)newInvestor.InvestorId!,
+            InvestorId = newInvestor.InvestorId ?? 0,
             UserId = identityUser.Id,
             VerificationToken = encodedToken
         };
-
     }
 
-    public Task<bool> UpdateInvestorDetailsAsync(int profileId, UpdateInvestorDetailsDTO dto)
+    public async Task<bool> UpdateInvestorDetailsAsync(int profileId, UpdateInvestorDetailsDTO dto)
     {
-        throw new NotImplementedException();
+        var investor = await _context.Investors
+            .FirstOrDefaultAsync(i => i.InvestorId == profileId);
+
+        if (investor == null) return false;
+
+        investor.LegalBusinessName = dto.organization ?? "—";
+        investor.CompanyRegistrationNo = dto.reg_number ?? "—";
+        investor.CapitalAmount = dto.amount;
+        investor.AuthorizedSignerName = dto.accreditation ?? "Accredited";
+        investor.TaxIdOrSSN = dto.country ?? "—";
+        investor.Notes = dto.interest ?? "—";
+        investor.InvestorTypeId = dto.type == "Business" ? 2 : 1;
+        investor.InvestmentInterestId = dto.amount < 100000 ? 1 : (dto.amount < 500000 ? 2 : (dto.amount < 1000000 ? 3 : 4));
+
+        if (!string.IsNullOrEmpty(investor.OwnerUserId))
+        {
+            var user = await _userManager.FindByIdAsync(investor.OwnerUserId);
+            if (user != null)
+            {
+                var names = (dto.name ?? "").Split(' ');
+                user.FirstName = names.FirstOrDefault() ?? "Investor";
+                user.LastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "User";
+                user.PhoneNumber = dto.mobile;
+                user.IsActive = dto.status != "inactive";
+                
+                // Update Email if it changed and does not clash
+                if (user.Email != dto.email)
+                {
+                    user.Email = dto.email;
+                    user.UserName = dto.email;
+                    user.NormalizedEmail = _userManager.NormalizeEmail(dto.email);
+                    user.NormalizedUserName = _userManager.NormalizeName(dto.email);
+                }
+
+                await _userManager.UpdateAsync(user);
+            }
+        }
+
+        return await _unitOfWork.CompleteAsync() >= 0;
     }
 }

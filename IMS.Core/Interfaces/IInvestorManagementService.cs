@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -13,16 +13,21 @@ public interface IInvestorManagementService
     Task<bool> DeleteInvestorProfileAsync(int profileId);
 }
 
-// Data Contracts defined completely inside Core
 public class InvestorSummaryDTO
 {
-    public int InvestorId { get; set; }
-    public string OwnerUserId { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string FullName { get; set; } = string.Empty;
-    public string InvestorTypeName { get; set; } = string.Empty;
-    public string InvestmentRange { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
+    public int id { get; set; }
+    public string name { get; set; } = string.Empty;
+    public string type { get; set; } = string.Empty;
+    public string email { get; set; } = string.Empty;
+    public string mobile { get; set; } = string.Empty;
+    public string organization { get; set; } = string.Empty;
+    public decimal amount { get; set; }
+    public string reg_number { get; set; } = string.Empty;
+    public string interest { get; set; } = string.Empty;
+    public string accreditation { get; set; } = string.Empty;
+    public string country { get; set; } = string.Empty;
+    public string status { get; set; } = string.Empty;
+    public string date_of_onboarding { get; set; } = string.Empty;
 }
 
 public class CreateInvestorProfileDTO
@@ -37,18 +42,34 @@ public class CreateInvestorProfileDTO
 
 public class UpdateInvestorDetailsDTO
 {
-    public string Name { get; set; } = string.Empty;
-
-    public string Organization { get; set; } = string.Empty;
-    public decimal? Amount { get; set; }
-    public bool Status { get; set; }
+    public string name { get; set; } = string.Empty;
+    public string type { get; set; } = string.Empty;
+    public string email { get; set; } = string.Empty;
+    public string mobile { get; set; } = string.Empty;
+    public string organization { get; set; } = string.Empty;
+    public decimal amount { get; set; }
+    public string reg_number { get; set; } = string.Empty;
+    public string interest { get; set; } = string.Empty;
+    public string accreditation { get; set; } = string.Empty;
+    public string country { get; set; } = string.Empty;
+    public string status { get; set; } = string.Empty;
 }
 
 public class RegisterInvestorDTO
 {
-    public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public string FullName { get; set; } = string.Empty;
+    public string name { get; set; } = string.Empty;
+    public string type { get; set; } = string.Empty;
+    public string email { get; set; } = string.Empty;
+    public string password { get; set; } = string.Empty;
+    public string mobile { get; set; } = string.Empty;
+    public string organization { get; set; } = string.Empty;
+    public decimal amount { get; set; }
+    public string reg_number { get; set; } = string.Empty;
+    public string interest { get; set; } = string.Empty;
+    public string accreditation { get; set; } = string.Empty;
+    public string country { get; set; } = string.Empty;
+    public string status { get; set; } = string.Empty;
+    public string date_of_onboarding { get; set; } = string.Empty;
 }
 
 public class InvestorRegistrationResponse

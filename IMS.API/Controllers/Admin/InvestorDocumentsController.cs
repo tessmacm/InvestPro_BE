@@ -37,7 +37,7 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpPost]
-        public async Task<IActionResult> UploadInvestorDoc(int id, [FromBody] UploadDocumentDTO dto)
+        public async Task<IActionResult> UploadInvestorDoc([FromQuery] int id, [FromBody] UploadDocumentDTO dto)
         {
             var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -46,11 +46,21 @@ namespace IMS.API.Controllers.Admin
                 return Unauthorized("Unable to resolve Admin User Identity");
             }
             
-            dto.Uploaded_By = adminUserId;
+            dto.uploaded_by = adminUserId;
 
             var success = await _documentService.UploadDocumentMetadataAsync(id, dto);
             return Ok(new { message = "Document uploaded successfully." });
-  
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteInvestorDoc(int id)
+        {
+            var success = await _documentService.DeleteDocumentAsync(id);
+            if (success)
+            {
+                return Ok(new { success = true });
+            }
+            return NotFound(new { message = "Document not found." });
         }
 
         

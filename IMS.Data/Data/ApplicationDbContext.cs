@@ -1,4 +1,4 @@
-﻿using IMS.Core.Entities;
+using IMS.Core.Entities;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -7,7 +7,7 @@ using System.Text;
 
 namespace IMS.Persistance.Data;
 
-public class ApplicationDbContext : IdentityDbContext
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
     public DbSet<InvestorType> InvestorTypes => Set<InvestorType>();
     public DbSet<InvestmentInterest> InvestmentInterests => Set<InvestmentInterest>();
@@ -40,6 +40,10 @@ public class ApplicationDbContext : IdentityDbContext
             .WithOne()
             .HasForeignKey<ApplicationUser>(u => u.InvestorId)
             .OnDelete(DeleteBehavior.SetNull); // If profile is gone, keep user login; or Restrict
+
+        modelBuilder.Entity<ApplicationUser>()
+            .HasDiscriminator<string>("Discriminator")
+            .HasValue<ApplicationUser>("ApplicationUser");
 
 
         modelBuilder.Entity<Investor>(entity =>
