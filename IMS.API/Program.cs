@@ -71,6 +71,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ElevatedRights", policy =>
     policy.RequireRole("admin", "superadmin"));
 
+    options.AddPolicy("ElevatedOrManager", policy =>
+    policy.RequireRole("admin", "superadmin", "manager"));
+
     options.AddPolicy("SuperAdminOnly", policy =>
        policy.RequireRole("superadmin"));
         

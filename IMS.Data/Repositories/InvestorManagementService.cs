@@ -69,33 +69,34 @@ public class InvestorManagementService : IInvestorManagementService
 
     public async Task<IEnumerable<InvestorSummaryDTO>> GetAllInvestorsAsync()
     {
-        var investors = await _context.Investors
-            .Include(i => i.InvestorTypeNav)
-            .Include(i => i.InvestmentInterestNav)
-            .ToListAsync();
+        var query = from inv in _context.Investors
+                    join user in _context.Users on inv.OwnerUserId equals user.Id into userGroup
+                    from user in userGroup.DefaultIfEmpty()
+                    select new
+                    {
+                        Investor = inv,
+                        User = user,
+                        InvestorTypeName = inv.InvestorTypeNav != null ? inv.InvestorTypeNav.Name : null
+                    };
 
-        var list = new List<InvestorSummaryDTO>();
-        foreach (var inv in investors)
+        var results = await query.ToListAsync();
+
+        return results.Select(r => new InvestorSummaryDTO
         {
-            var user = await _userManager.FindByIdAsync(inv.OwnerUserId ?? "");
-            list.Add(new InvestorSummaryDTO
-            {
-                id = inv.InvestorId ?? 0,
-                name = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "Unknown",
-                email = user?.Email ?? "",
-                mobile = user?.PhoneNumber ?? "",
-                type = inv.InvestorTypeNav?.Name ?? "Individual",
-                organization = inv.LegalBusinessName ?? "—",
-                amount = inv.CapitalAmount ?? 0,
-                reg_number = inv.CompanyRegistrationNo ?? "—",
-                interest = inv.Notes ?? "—",
-                accreditation = inv.AuthorizedSignerName ?? "Accredited",
-                country = inv.TaxIdOrSSN ?? "—",
-                status = (user?.IsActive ?? true) ? "active" : "inactive",
-                date_of_onboarding = user?.CreatedAt.ToString("dd MMM yyyy") ?? "15 May 2024"
-            });
-        }
-        return list;
+            id = r.Investor.InvestorId ?? 0,
+            name = r.User != null ? $"{r.User.FirstName} {r.User.LastName}".Trim() : "Unknown",
+            email = r.User?.Email ?? "",
+            mobile = r.User?.PhoneNumber ?? "",
+            type = r.InvestorTypeName ?? "Individual",
+            organization = r.Investor.LegalBusinessName ?? "—",
+            amount = r.Investor.CapitalAmount ?? 0,
+            reg_number = r.Investor.CompanyRegistrationNo ?? "—",
+            interest = r.Investor.Notes ?? "—",
+            accreditation = r.Investor.AuthorizedSignerName ?? "Accredited",
+            country = r.Investor.TaxIdOrSSN ?? "—",
+            status = (r.User?.IsActive ?? true) ? "active" : "inactive",
+            date_of_onboarding = r.User != null ? r.User.CreatedAt.ToString("dd MMM yyyy") : "15 May 2024"
+        }).ToList();
     }
 
     public async Task<InvestorRegistrationResponse> RegisterAndCreateInvestorAsync(RegisterInvestorDTO dto)

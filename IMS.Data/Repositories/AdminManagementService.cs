@@ -1,6 +1,7 @@
 using IMS.Core.Interfaces;
 using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,27 +13,32 @@ namespace IMS.Persistance.Repositories;
 public class AdminManagementService : IAdminManagementService
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ApplicationDbContext _context;
 
-    public AdminManagementService(UserManager<ApplicationUser> userManager)
+    public AdminManagementService(UserManager<ApplicationUser> userManager, ApplicationDbContext context)
     {
         _userManager = userManager;
+        _context = context;
     }
 
     public async Task<IEnumerable<AdminUserSummaryDTO>> GetAllAdminUsersAsync()
     {
-        var admins = await _userManager.GetUsersInRoleAsync("admin");
-        var superAdmins = await _userManager.GetUsersInRoleAsync("superadmin");
-        
-        var rawAdmins = admins.Concat(superAdmins).GroupBy(u => u.Id).Select(g => g.First()).ToList();
+        var query = from user in _context.Users
+                    join userRole in _context.UserRoles on user.Id equals userRole.UserId
+                    join role in _context.Roles on userRole.RoleId equals role.Id
+                    where role.Name == "admin" || role.Name == "superadmin" || role.Name == "manager" || role.Name == "client" || role.Name == "investor"
+                    select new AdminUserSummaryDTO
+                    {
+                        Id = user.Id,
+                        Email = user.Email!,
+                        FirstName = user.FirstName,
+                        LastName = user.LastName,
+                        IsActive = user.IsActive,
+                        Role = role.Name!
+                    };
 
-        return rawAdmins.Select(a => new AdminUserSummaryDTO
-        {
-            Id = a.Id,
-            Email = a.Email!,
-            FirstName = a.FirstName,
-            LastName = a.LastName,
-            IsActive = a.IsActive,
-        }).ToList();
+        var list = await query.ToListAsync();
+        return list.GroupBy(u => u.Id).Select(g => g.First()).ToList();
     }
     public async Task<(bool Succeeded, string[] Errors)> CreateAdminUserAsync(CreateAdminUserDTO createDto)
     {
@@ -50,7 +56,8 @@ public class AdminManagementService : IAdminManagementService
 
         if (result.Succeeded)
         {
-            var roleResult = await _userManager.AddToRoleAsync(adminUser, "admin");
+            var roleName = string.IsNullOrWhiteSpace(createDto.Role) ? "admin" : createDto.Role.ToLowerInvariant();
+            var roleResult = await _userManager.AddToRoleAsync(adminUser, roleName);
             if (roleResult.Succeeded)
             {
                 return (true, Array.Empty<string>());

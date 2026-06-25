@@ -1,40 +1,50 @@
 using IMS.API.Services.EmailService;
 using IMS.Core.Interfaces;
+using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace IMS.API.Controllers.Admin
 {
     [Route("api/admin/investors")]
     [ApiController]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")] // Only allow Admin role to access this controller
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public class AdminInvestorController : ControllerBase
     {
         private readonly IInvestorManagementService _investorService;
         private readonly IEmailService _emailService;
+        private readonly UserManager<ApplicationUser> _userManager;
 
         public AdminInvestorController(IInvestorManagementService investorService,
-            IEmailService emailService)
+            IEmailService emailService,
+            UserManager<ApplicationUser> userManager)
         {
             _investorService = investorService;
             _emailService = emailService;
+            _userManager = userManager;
         }
 
         // GET: api/admin/investors
         [HttpGet]
-        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")] // Only allow Admin role to access this controller
         public async Task<IActionResult> GetAllInvestors()
         {
             var investors = await _investorService.GetAllInvestorsAsync();
+            if (User.IsInRole("investor"))
+            {
+                var user = await _userManager.GetUserAsync(User);
+                var investorId = user?.InvestorId ?? 0;
+                investors = investors.Where(i => i.id == investorId).ToList();
+            }
             return Ok(investors);
         }
 
 
         // POST: api/admin/investors/create
         [HttpPost("create")]
-        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")] // Only allow Admin role to access this controller
+        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> AdminCreateInvestorProfile([FromBody] RegisterInvestorDTO regCreateDto)
         {
             var response = await _investorService.RegisterAndCreateInvestorAsync(regCreateDto);
@@ -59,7 +69,7 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpPut("update/{Id}")]
-        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")] // Only allow Admin role to access this controller
+        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> UpdateInvestorDetails(int Id, [FromBody] UpdateInvestorDetailsDTO updateDto)
         {
             var result = await _investorService.UpdateInvestorDetailsAsync(Id, updateDto);
@@ -69,7 +79,7 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpDelete("{Id}")]
-        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")] // Only allow Admin role to access this controller
+        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> DeleteInvestorProfile(int Id)
         {
             var result = await _investorService.DeleteInvestorProfileAsync(Id);

@@ -3,6 +3,7 @@ using IMS.Core.Interfaces;
 using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -14,22 +15,37 @@ namespace IMS.API.Controllers.Admin
 {
     [Route("api/admin/projects")]
     [ApiController]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public class ProjectsController : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ApplicationDbContext _context;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public ProjectsController(IUnitOfWork unitOfWork, ApplicationDbContext context)
+        public ProjectsController(IUnitOfWork unitOfWork, ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
             _unitOfWork = unitOfWork;
             _context = context;
+            _userManager = userManager;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAllProjects()
         {
-            var projects = await _context.Projects.ToListAsync();
+            List<Project> projects;
+            if (User.IsInRole("investor"))
+            {
+                var user = await _userManager.GetUserAsync(User);
+                var investorId = user?.InvestorId ?? 0;
+                projects = await _context.Projects
+                    .Where(p => _context.InvestorCommitments.Any(c => c.InvestorId == investorId && c.ProjectId == p.Id))
+                    .ToListAsync();
+            }
+            else
+            {
+                projects = await _context.Projects.ToListAsync();
+            }
+
             var mapped = new List<object>();
             foreach (var p in projects)
             {
@@ -50,6 +66,7 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpPost]
+        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> CreateProject([FromBody] ProjectCreateUpdateDTO dto)
         {
             var project = new Project
@@ -80,6 +97,7 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpPut("{id}")]
+        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> UpdateProject(int id, [FromBody] ProjectCreateUpdateDTO dto)
         {
             var project = await _context.Projects.FindAsync(id);
@@ -111,6 +129,7 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> DeleteProject(int id)
         {
             var project = await _context.Projects.FindAsync(id);
@@ -123,6 +142,7 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpPatch("{id}/status")]
+        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> UpdateProjectStatus(int id, [FromBody] StatusUpdateDTO dto)
         {
             var project = await _context.Projects.FindAsync(id);
