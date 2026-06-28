@@ -1,4 +1,4 @@
-﻿using IMS.API.DTOs.Auth;
+using IMS.API.DTOs.Auth;
 using IMS.API.Services.EmailService;
 using IMS.Core.Entities;
 using IMS.Core.Interfaces;
@@ -12,6 +12,10 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
+using System;
+using System.Linq;
 
 namespace IMS.API.Controllers
 {
@@ -20,6 +24,9 @@ namespace IMS.API.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        private static readonly ConcurrentDictionary<string, (string Otp, DateTime Expiry)> _loginOtps = new();
+        private static readonly ConcurrentDictionary<string, (string Otp, DateTime Expiry, string FirstName, string LastName)> _pendingRegistrations = new();
+
         UserManager<ApplicationUser>? _userManager;
         SignInManager<ApplicationUser>? _signInManager;
         IEmailService _emailService;
@@ -357,8 +364,263 @@ namespace IMS.API.Controllers
             var jwtToken = handler.ReadJwtToken(token);
 
             // Returns a raw look at every single claim embedded in the token
+            // Returns a raw look at every single claim embedded in the token
             return Ok(jwtToken.Claims.Select(c => new { c.Type, c.Value }));
         }
 
+        [HttpGet("check-users")]
+        public IActionResult CheckUsers()
+        {
+            var hasUsers = _userManager!.Users.Any();
+            return Ok(new { hasUsers });
+        }
+
+        [HttpPost("send-login-otp")]
+        public async Task<IActionResult> SendLoginOtp([FromBody] SendLoginOtpDTO model)
+        {
+            if (string.IsNullOrEmpty(model.Email))
+            {
+                return BadRequest(new { Message = "Email is required." });
+            }
+
+            var user = await _userManager!.FindByEmailAsync(model.Email);
+            if (user == null)
+            {
+                return NotFound(new { Message = "User not found" });
+            }
+
+            if (!user.IsActive)
+            {
+                return Unauthorized(new { Message = "Your account is inactive. Please contact support." });
+            }
+
+            var otp = Random.Shared.Next(100000, 999999).ToString();
+            var expiry = DateTime.UtcNow.AddMinutes(10);
+            _loginOtps[model.Email.ToLowerInvariant()] = (otp, expiry);
+
+            await _emailService.SendEmailAsync(
+                user.Email!,
+                "Login Verification Code",
+                $"Your login verification code is: {otp}. This code will expire in 10 minutes.");
+
+            return Ok(new { Message = "OTP sent successfully" });
+        }
+
+        [HttpPost("verify-login-otp")]
+        public async Task<IActionResult> VerifyLoginOtp([FromBody] VerifyLoginOtpDTO model)
+        {
+            if (string.IsNullOrEmpty(model.Email) || string.IsNullOrEmpty(model.Otp))
+            {
+                return BadRequest(new { Message = "Email and OTP are required." });
+            }
+
+            var emailKey = model.Email.ToLowerInvariant();
+            if (!_loginOtps.TryGetValue(emailKey, out var otpData))
+            {
+                return BadRequest(new { Message = "Invalid or expired OTP." });
+            }
+
+            if (otpData.Otp != model.Otp || DateTime.UtcNow > otpData.Expiry)
+            {
+                return BadRequest(new { Message = "Invalid or expired OTP." });
+            }
+
+            _loginOtps.TryRemove(emailKey, out _);
+
+            var user = await _userManager!.FindByEmailAsync(model.Email);
+            if (user == null || !user.IsActive)
+            {
+                return Unauthorized(new { Message = "User status invalid." });
+            }
+
+            var roles = await _userManager.GetRolesAsync(user);
+            var claims = new List<Claim>()
+            {
+                new Claim("sub", user.Id),
+                new Claim("name", user.Email!),
+            };
+
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim("role", role));
+            }
+
+            var securityKey = _configuration.GetValue<string>("JwtSettings:SecretKey") ?? "d3011f8b98bbc1aa1c4ff1a7d4864fc72d9ee150bd682cf4e612d6321f57821d";
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityKey));
+            var signCred = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var jwt = new JwtSecurityToken(
+                issuer: null,
+                audience: null,
+                signingCredentials: signCred,
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(30));
+
+            var tokenString = new JwtSecurityTokenHandler().WriteToken(jwt);
+            var fullName = $"{user.FirstName} {user.LastName}".Trim();
+            if (string.IsNullOrWhiteSpace(fullName)) fullName = user.UserName ?? string.Empty;
+
+            return Ok(new
+            {
+                token = tokenString,
+                user = new
+                {
+                    id = user.Id,
+                    email = user.Email,
+                    name = fullName,
+                    role = roles.Count > 0 ? roles[0] : string.Empty,
+                    status = user.IsActive ? "active" : "inactive"
+                }
+            });
+        }
+
+        [HttpPost("register-request")]
+        public async Task<IActionResult> RegisterRequest([FromBody] RegisterRequestDTO model)
+        {
+            if (string.IsNullOrEmpty(model.Email) || string.IsNullOrEmpty(model.FirstName) || string.IsNullOrEmpty(model.LastName))
+            {
+                return BadRequest(new { Message = "First name, last name, and email are required." });
+            }
+
+            var user = await _userManager!.FindByEmailAsync(model.Email);
+            if (user != null)
+            {
+                return BadRequest(new { Message = "Email is already registered." });
+            }
+
+            var otp = Random.Shared.Next(100000, 999999).ToString();
+            var expiry = DateTime.UtcNow.AddMinutes(10);
+            _pendingRegistrations[model.Email.ToLowerInvariant()] = (otp, expiry, model.FirstName, model.LastName);
+
+            await _emailService.SendEmailAsync(
+                model.Email,
+                "Registration Verification Code",
+                $"Your registration verification code is: {otp}. This code will expire in 10 minutes.");
+
+            return Ok(new { Message = "OTP sent successfully" });
+        }
+
+        [HttpPost("register-verify-otp")]
+        public async Task<IActionResult> RegisterVerifyOtp([FromBody] RegisterVerifyOtpDTO model)
+        {
+            if (string.IsNullOrEmpty(model.Email) || string.IsNullOrEmpty(model.Otp))
+            {
+                return BadRequest(new { Message = "Email and OTP are required." });
+            }
+
+            var emailKey = model.Email.ToLowerInvariant();
+            if (!_pendingRegistrations.TryGetValue(emailKey, out var regData))
+            {
+                return BadRequest(new { Message = "Invalid or expired registration session." });
+            }
+
+            if (regData.Otp != model.Otp || DateTime.UtcNow > regData.Expiry)
+            {
+                return BadRequest(new { Message = "Invalid or expired OTP." });
+            }
+
+            _pendingRegistrations.TryRemove(emailKey, out _);
+
+            var existingUser = await _userManager!.FindByEmailAsync(model.Email);
+            if (existingUser != null)
+            {
+                return BadRequest(new { Message = "User already exists." });
+            }
+
+            var isFirstUser = !_userManager.Users.Any();
+            var assignedRole = isFirstUser ? "superadmin" : "client";
+
+            var newUser = new ApplicationUser
+            {
+                UserName = model.Email,
+                Email = model.Email,
+                FirstName = regData.FirstName,
+                LastName = regData.LastName,
+                EmailConfirmed = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var createResult = await _userManager.CreateAsync(newUser, "Password123!");
+            if (!createResult.Succeeded)
+            {
+                return BadRequest(new { Message = createResult.Errors.FirstOrDefault()?.Description ?? "Failed to create user." });
+            }
+
+            await _userManager.AddToRoleAsync(newUser, assignedRole);
+
+            var superAdmins = await _userManager.GetUsersInRoleAsync("superadmin");
+            foreach (var sa in superAdmins)
+            {
+                await _emailService.SendEmailAsync(
+                    sa.Email!,
+                    "New User Registration Alert",
+                    $"A new user has registered on the platform:\n\nName: {regData.FirstName} {regData.LastName}\nEmail: {model.Email}\nAssigned Role: {assignedRole}\n\nYou can manage this user's details and approval status in the Admin Panel.");
+            }
+
+            var roles = new List<string> { assignedRole };
+            var claims = new List<Claim>()
+            {
+                new Claim("sub", newUser.Id),
+                new Claim("name", newUser.Email!),
+            };
+
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim("role", role));
+            }
+
+            var securityKey = _configuration.GetValue<string>("JwtSettings:SecretKey") ?? "d3011f8b98bbc1aa1c4ff1a7d4864fc72d9ee150bd682cf4e612d6321f57821d";
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityKey));
+            var signCred = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var jwt = new JwtSecurityToken(
+                issuer: null,
+                audience: null,
+                signingCredentials: signCred,
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(30));
+
+            var tokenString = new JwtSecurityTokenHandler().WriteToken(jwt);
+            var fullName = $"{newUser.FirstName} {newUser.LastName}".Trim();
+
+            return Ok(new
+            {
+                token = tokenString,
+                user = new
+                {
+                    id = newUser.Id,
+                    email = newUser.Email,
+                    name = fullName,
+                    role = assignedRole,
+                    status = "active"
+                }
+            });
+        }
+
+    }
+
+    public class SendLoginOtpDTO
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class VerifyLoginOtpDTO
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Otp { get; set; } = string.Empty;
+    }
+
+    public class RegisterRequestDTO
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class RegisterVerifyOtpDTO
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Otp { get; set; } = string.Empty;
     }
 }
