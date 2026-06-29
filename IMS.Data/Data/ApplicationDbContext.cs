@@ -15,6 +15,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<InvestorCommitment> InvestorCommitments => Set<InvestorCommitment>();
     public DbSet<InvestorDocument> InvestorDocuments => Set<InvestorDocument>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<RoiContract> RoiContracts => Set<RoiContract>();
+    public DbSet<SystemNotification> SystemNotifications => Set<SystemNotification>();
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {

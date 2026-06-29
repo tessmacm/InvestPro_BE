@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -17,7 +17,10 @@ public class Investor
     public string? AuthorizedSignerName { get; set; }
     public decimal? CapitalAmount { get; set; }
     public string? Notes { get; set; } 
-
+    public DateTime? DateOfBoarding { get; set; }
+    public string? RoiType { get; set; }
+    public string? BankName { get; set; }
+    public string? BankAccountNo { get; set; }
     public int? InvestorTypeId { get; set; }
     public InvestorType? InvestorTypeNav { get; set; }
 
