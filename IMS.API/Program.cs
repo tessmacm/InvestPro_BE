@@ -64,18 +64,18 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization(options =>
 {
-    // Define a policy named "AdminOnly" that requires the user to have the "admin" role.
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("admin", "Admin"));
+    // Define a policy named "AdminOnly" that requires the user to have the "admin" or "superadmin" role.
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("admin", "Admin", "superadmin", "SuperAdmin"));
 
     // Elevated Rights: Admin
     options.AddPolicy("ElevatedRights", policy =>
-        policy.RequireRole("admin", "Admin"));
+        policy.RequireRole("admin", "Admin", "superadmin", "SuperAdmin"));
 
     options.AddPolicy("ElevatedOrManager", policy =>
-        policy.RequireRole("admin", "Admin", "manager", "Manager"));
+        policy.RequireRole("admin", "Admin", "manager", "Manager", "superadmin", "SuperAdmin"));
 
     options.AddPolicy("SuperAdminOnly", policy =>
-        policy.RequireRole("admin", "Admin"));
+        policy.RequireRole("admin", "Admin", "superadmin", "SuperAdmin"));
         
 });
 
