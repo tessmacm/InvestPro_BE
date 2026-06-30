@@ -23,7 +23,22 @@ public class ReportsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var list = await _context.Investors
+        var investorQuery = _context.Investors.AsQueryable();
+
+        if (User.IsInRole("investor"))
+        {
+            var claim = User.FindFirst("investorId");
+            if (claim != null && int.TryParse(claim.Value, out var id))
+            {
+                investorQuery = investorQuery.Where(i => i.InvestorId == id);
+            }
+            else
+            {
+                return Ok(new object[0]);
+            }
+        }
+
+        var list = await investorQuery
             .SelectMany(i => _context.Projects.Select(p => new {
                 investorId = i.InvestorId,
                 investorName = i.LegalBusinessName ?? "Investor",

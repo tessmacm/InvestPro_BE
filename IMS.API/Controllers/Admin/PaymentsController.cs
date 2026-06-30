@@ -27,7 +27,19 @@ public class PaymentsController : ControllerBase
     {
         var query = _context.Payments.Include(p => p.InvestorNav).AsQueryable();
 
-        if (investorId.HasValue)
+        if (User.IsInRole("investor"))
+        {
+            var claim = User.FindFirst("investorId");
+            if (claim != null && int.TryParse(claim.Value, out var id))
+            {
+                query = query.Where(p => p.InvestorId == id);
+            }
+            else
+            {
+                return Ok(new object[0]);
+            }
+        }
+        else if (investorId.HasValue)
         {
             query = query.Where(p => p.InvestorId == investorId);
         }

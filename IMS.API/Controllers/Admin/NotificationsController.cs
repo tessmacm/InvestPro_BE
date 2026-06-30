@@ -27,7 +27,19 @@ public class NotificationsController : ControllerBase
     {
         var query = _context.SystemNotifications.Include(n => n.InvestorNav).AsQueryable();
 
-        if (investorId.HasValue)
+        if (User.IsInRole("investor"))
+        {
+            var claim = User.FindFirst("investorId");
+            if (claim != null && int.TryParse(claim.Value, out var id))
+            {
+                query = query.Where(n => n.InvestorId == id || n.InvestorId == null);
+            }
+            else
+            {
+                return Ok(new object[0]);
+            }
+        }
+        else if (investorId.HasValue)
         {
             query = query.Where(n => n.InvestorId == investorId);
         }

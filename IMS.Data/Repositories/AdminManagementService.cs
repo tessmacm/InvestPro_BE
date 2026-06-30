@@ -49,7 +49,8 @@ public class AdminManagementService : IAdminManagementService
             FirstName = createDto.FirstName,
             LastName = createDto.LastName,
             InvestorId = null,
-            IsActive = true
+            IsActive = true,
+            EmailConfirmed = true
         };
 
         var result = await _userManager.CreateAsync(adminUser, createDto.Password);

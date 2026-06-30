@@ -113,7 +113,8 @@ public class InvestorManagementService : IInvestorManagementService
             FirstName = firstName,
             LastName = lastName,
             PhoneNumber = dto.mobile,
-            IsActive = dto.status != "inactive"
+            IsActive = dto.status != "inactive",
+            EmailConfirmed = true
         };
 
         var pwd = string.IsNullOrEmpty(dto.password) ? "Password123!" : dto.password;
@@ -125,7 +126,7 @@ public class InvestorManagementService : IInvestorManagementService
             return new InvestorRegistrationResponse { IsSuccess = false, ErrorMessage = error };
         }
 
-        await _userManager.AddToRoleAsync(identityUser, "Investor");
+        await _userManager.AddToRoleAsync(identityUser, "investor");
 
         // Step 2: Create Investor entity
         var newInvestor = new Investor
@@ -137,9 +138,13 @@ public class InvestorManagementService : IInvestorManagementService
             CompanyRegistrationNo = dto.reg_number ?? "—",
             AuthorizedSignerName = dto.accreditation ?? "Accredited",
             CapitalAmount = dto.amount,
-            Notes = dto.interest ?? "—",
+            Notes = dto.roi ?? "—",
             InvestorTypeId = dto.type == "Business" ? 2 : 1,
-            InvestmentInterestId = dto.amount < 100000 ? 1 : (dto.amount < 500000 ? 2 : (dto.amount < 1000000 ? 3 : 4))
+            InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1,
+            DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
+            RoiType = dto.roiType,
+            BankName = dto.bank,
+            BankAccountNo = dto.acNumber
         };
 
         // Save via Unit of Work
@@ -177,9 +182,13 @@ public class InvestorManagementService : IInvestorManagementService
         investor.CapitalAmount = dto.amount;
         investor.AuthorizedSignerName = dto.accreditation ?? "Accredited";
         investor.TaxIdOrSSN = dto.country ?? "—";
-        investor.Notes = dto.interest ?? "—";
+        investor.Notes = dto.roi ?? "—";
         investor.InvestorTypeId = dto.type == "Business" ? 2 : 1;
-        investor.InvestmentInterestId = dto.amount < 100000 ? 1 : (dto.amount < 500000 ? 2 : (dto.amount < 1000000 ? 3 : 4));
+        investor.InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1;
+        investor.DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow;
+        investor.RoiType = dto.roiType;
+        investor.BankName = dto.bank;
+        investor.BankAccountNo = dto.acNumber;
 
         if (!string.IsNullOrEmpty(investor.OwnerUserId))
         {

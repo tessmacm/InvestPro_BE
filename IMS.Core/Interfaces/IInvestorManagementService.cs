@@ -53,6 +53,11 @@ public class UpdateInvestorDetailsDTO
     public string accreditation { get; set; } = string.Empty;
     public string country { get; set; } = string.Empty;
     public string status { get; set; } = string.Empty;
+    public string date_of_onboarding { get; set; } = string.Empty;
+    public string roi { get; set; } = string.Empty;
+    public string roiType { get; set; } = string.Empty;
+    public string bank { get; set; } = string.Empty;
+    public string acNumber { get; set; } = string.Empty;
 }
 
 public class RegisterInvestorDTO
@@ -70,6 +75,10 @@ public class RegisterInvestorDTO
     public string country { get; set; } = string.Empty;
     public string status { get; set; } = string.Empty;
     public string date_of_onboarding { get; set; } = string.Empty;
+    public string roi { get; set; } = string.Empty;
+    public string roiType { get; set; } = string.Empty;
+    public string bank { get; set; } = string.Empty;
+    public string acNumber { get; set; } = string.Empty;
 }
 
 public class InvestorRegistrationResponse

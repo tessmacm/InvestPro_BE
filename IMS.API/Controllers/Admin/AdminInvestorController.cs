@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using IMS.API.Controllers;
 
 namespace IMS.API.Controllers.Admin
 {
@@ -53,14 +54,15 @@ namespace IMS.API.Controllers.Admin
             {
                 return BadRequest(new { Message = "Failed to create investor profile." });
             }
-            var frontendUrl = "http://localhost:5078/api/Auth/"; // Replace with your actual frontend URL
 
-            var confirmationLink = $"{frontendUrl}/register-verify?userId={response.UserId}&token={response.VerificationToken}";
+            var otp = Random.Shared.Next(100000, 999999).ToString();
+            var expiry = DateTime.UtcNow.AddMinutes(10);
+            AuthController._loginOtps[response.Email!.ToLowerInvariant()] = (otp, expiry);
 
             await _emailService.SendEmailAsync(
                 response.Email!,
-                "Email Confirmation",
-                $"Please confirm your email by clicking on the link: {confirmationLink}");
+                "Welcome to InvestPro",
+                $"Welcome to InvestPro! You have been added as an Investor. You can now log in using your registered email address.\n\nYour login verification code is: {otp}. This code will expire in 10 minutes.");
 
             return Ok(new
             {

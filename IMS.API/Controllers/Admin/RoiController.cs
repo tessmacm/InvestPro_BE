@@ -25,10 +25,25 @@ public class RoiController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var list = await _context.RoiContracts
+        var query = _context.RoiContracts
             .Include(r => r.InvestorNav)
             .Include(r => r.ProjectNav)
-            .ToListAsync();
+            .AsQueryable();
+
+        if (User.IsInRole("investor"))
+        {
+            var claim = User.FindFirst("investorId");
+            if (claim != null && int.TryParse(claim.Value, out var id))
+            {
+                query = query.Where(r => r.InvestorId == id);
+            }
+            else
+            {
+                return Ok(new object[0]);
+            }
+        }
+
+        var list = await query.ToListAsync();
 
         return Ok(list.Select(r => new {
             id = r.Id,

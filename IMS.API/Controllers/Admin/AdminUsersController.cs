@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using IMS.API.Services.EmailService;
+using IMS.API.Controllers;
+using System;
 
 namespace IMS.API.Controllers.Admin;
 
@@ -11,10 +14,12 @@ namespace IMS.API.Controllers.Admin;
 public class AdminUsersController : ControllerBase
 {
     private readonly IAdminManagementService _adminService;
+    private readonly IEmailService _emailService;
 
-    public AdminUsersController(IAdminManagementService adminService)
+    public AdminUsersController(IAdminManagementService adminService, IEmailService emailService)
     {
         _adminService = adminService;
+        _emailService = emailService;
     }
 
     [HttpGet]
@@ -31,7 +36,18 @@ public class AdminUsersController : ControllerBase
     {
         var (succeeded, errors) = await _adminService.CreateAdminUserAsync(createDto);
         if (succeeded)
+        {
+            var otp = Random.Shared.Next(100000, 999999).ToString();
+            var expiry = DateTime.UtcNow.AddMinutes(10);
+            AuthController._loginOtps[createDto.Email.ToLowerInvariant()] = (otp, expiry);
+
+            await _emailService.SendEmailAsync(
+                createDto.Email,
+                "Welcome to InvestPro",
+                $"Welcome to InvestPro! Your account has been created by the administrator with the role of '{createDto.Role}'. You can now log in using your registered email address.\n\nYour login verification code is: {otp}. This code will expire in 10 minutes.");
+
             return Ok(new { Message = "Admin user created successfully." });
+        }
         return BadRequest(new { Message = "Failed to create admin user.", Errors = errors });
     }
 

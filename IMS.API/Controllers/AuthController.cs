@@ -24,8 +24,8 @@ namespace IMS.API.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private static readonly ConcurrentDictionary<string, (string Otp, DateTime Expiry)> _loginOtps = new();
-        private static readonly ConcurrentDictionary<string, (string Otp, DateTime Expiry, string FirstName, string LastName)> _pendingRegistrations = new();
+        public static readonly ConcurrentDictionary<string, (string Otp, DateTime Expiry)> _loginOtps = new();
+        public static readonly ConcurrentDictionary<string, (string Otp, DateTime Expiry, string FirstName, string LastName)> _pendingRegistrations = new();
 
         UserManager<ApplicationUser>? _userManager;
         SignInManager<ApplicationUser>? _signInManager;
@@ -444,6 +444,10 @@ namespace IMS.API.Controllers
             {
                 claims.Add(new Claim("role", role));
             }
+            if (user.InvestorId.HasValue)
+            {
+                claims.Add(new Claim("investorId", user.InvestorId.Value.ToString()));
+            }
 
             var securityKey = _configuration.GetValue<string>("JwtSettings:SecretKey") ?? "d3011f8b98bbc1aa1c4ff1a7d4864fc72d9ee150bd682cf4e612d6321f57821d";
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityKey));
@@ -527,8 +531,7 @@ namespace IMS.API.Controllers
                 return BadRequest(new { Message = "User already exists." });
             }
 
-            var isFirstUser = !_userManager.Users.Any();
-            var assignedRole = isFirstUser ? "superadmin" : "client";
+            var assignedRole = "admin";
 
             var newUser = new ApplicationUser
             {
@@ -549,8 +552,8 @@ namespace IMS.API.Controllers
 
             await _userManager.AddToRoleAsync(newUser, assignedRole);
 
-            var superAdmins = await _userManager.GetUsersInRoleAsync("superadmin");
-            foreach (var sa in superAdmins)
+            var admins = await _userManager.GetUsersInRoleAsync("admin");
+            foreach (var sa in admins)
             {
                 await _emailService.SendEmailAsync(
                     sa.Email!,
@@ -568,6 +571,10 @@ namespace IMS.API.Controllers
             foreach (var role in roles)
             {
                 claims.Add(new Claim("role", role));
+            }
+            if (newUser.InvestorId.HasValue)
+            {
+                claims.Add(new Claim("investorId", newUser.InvestorId.Value.ToString()));
             }
 
             var securityKey = _configuration.GetValue<string>("JwtSettings:SecretKey") ?? "d3011f8b98bbc1aa1c4ff1a7d4864fc72d9ee150bd682cf4e612d6321f57821d";
