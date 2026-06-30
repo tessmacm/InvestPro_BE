@@ -68,7 +68,7 @@ public class AdminUsersController : ControllerBase
         var result = await _adminService.UpdateAdminUserStatusAsync(Id, statusDto);
         if (result)
             return Ok(new { Message = "Admin user status updated successfully." });
-        return BadRequest(new { Message = "Failed to update admin user status." });
+        return BadRequest(new { Message = "Failed to update status. Cannot deactivate the only remaining active Administrator." });
     }
 
     [HttpPatch("{Id}/role")]
@@ -78,7 +78,7 @@ public class AdminUsersController : ControllerBase
         var result = await _adminService.UpdateAdminUserRoleAsync(Id, roleDto);
         if (result)
             return Ok(new { Message = "Admin user role updated successfully." });
-        return BadRequest(new { Message = "Failed to update admin user role." });
+        return BadRequest(new { Message = "Failed to update role. Cannot demote the only remaining active Administrator." });
     }
 
     [HttpDelete("{Id}")]
@@ -89,7 +89,7 @@ public class AdminUsersController : ControllerBase
         if (result == true)
             return Ok(new { Message = "Admin user deleted successfully." });
         else if (result == false)
-            return BadRequest(new { Message = "Failed to delete admin user." });
+            return BadRequest(new { Message = "Failed to delete admin user. Cannot delete the only remaining active Administrator." });
         else
             return NotFound(new { Message = "Admin user not found." });
     }

@@ -95,6 +95,15 @@ public class AdminManagementService : IAdminManagementService
         return false;
     }
 
+    private async Task<bool> IsLastAdminAsync(string userId)
+    {
+        var admins = await _userManager.GetUsersInRoleAsync("admin");
+        var superadmins = await _userManager.GetUsersInRoleAsync("superadmin");
+        var allAdmins = admins.Concat(superadmins).Where(u => u.IsActive).GroupBy(u => u.Id).Select(g => g.First()).ToList();
+        
+        return allAdmins.Any(a => a.Id == userId) && allAdmins.Count <= 1;
+    }
+
     public async Task<bool> UpdateAdminUserStatusAsync(string Id, UpdateAdminUserStatusDTO statusDto)
     {
         var adminUser = await _userManager.FindByIdAsync(Id);
@@ -102,6 +111,13 @@ public class AdminManagementService : IAdminManagementService
         {
             return false;
         }
+
+        // If deactivating, verify it's not the last admin
+        if (!statusDto.Status && await IsLastAdminAsync(Id))
+        {
+            return false;
+        }
+
         adminUser.IsActive = statusDto.Status;
         var result = await _userManager.UpdateAsync(adminUser);
         return result.Succeeded;
@@ -114,13 +130,23 @@ public class AdminManagementService : IAdminManagementService
         {
             return false;
         }
+
+        var newRole = roleDto.Role.ToLowerInvariant();
+        var isNewRoleAdmin = newRole == "admin" || newRole == "superadmin";
+
+        // If changing from admin to non-admin, verify it's not the last admin
+        if (!isNewRoleAdmin && await IsLastAdminAsync(Id))
+        {
+            return false;
+        }
+
         var currentRoles = await _userManager.GetRolesAsync(adminUser);
         var removeResult = await _userManager.RemoveFromRolesAsync(adminUser, currentRoles);
         if (!removeResult.Succeeded)
         {
             return false;
         }
-        var addResult = await _userManager.AddToRoleAsync(adminUser, roleDto.Role.ToLowerInvariant());
+        var addResult = await _userManager.AddToRoleAsync(adminUser, newRole);
         return addResult.Succeeded;
     }
 
@@ -131,6 +157,13 @@ public class AdminManagementService : IAdminManagementService
         {
             return false;
         }
+
+        // Verify it's not the last admin
+        if (await IsLastAdminAsync(Id))
+        {
+            return false;
+        }
+
         var result = await _userManager.DeleteAsync(adminUser);
         return result.Succeeded;
     }
