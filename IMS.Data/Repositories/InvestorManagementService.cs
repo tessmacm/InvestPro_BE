@@ -89,14 +89,49 @@ public class InvestorManagementService : IInvestorManagementService
             mobile = r.User?.PhoneNumber ?? "",
             type = r.InvestorTypeName ?? "Individual",
             organization = r.Investor.LegalBusinessName ?? "—",
+            authSingerName = r.Investor.AuthorizedSignerName ?? "Accredited",
             amount = r.Investor.CapitalAmount ?? 0,
             reg_number = r.Investor.CompanyRegistrationNo ?? "—",
-            interest = r.Investor.Notes ?? "—",
             accreditation = r.Investor.AuthorizedSignerName ?? "Accredited",
-            country = r.Investor.TaxIdOrSSN ?? "—",
             status = (r.User?.IsActive ?? true) ? "active" : "inactive",
-            date_of_onboarding = r.User != null ? r.User.CreatedAt.ToString("dd MMM yyyy") : "15 May 2024"
+            date_of_onboarding = r.User != null ? r.User.CreatedAt.ToString("dd MMM yyyy") : "15 May 2024",
         }).ToList();
+    }
+
+    public async Task<InvestorDetailsDTO?> GetInvestorDetailsByIdAsync(int investorId)
+    {
+        var investor = await _context.Investors
+            .Include(i => i.InvestorTypeNav)
+            .Include(i => i.RoiTypeNav)
+            .Include(i => i.MinRoiRangeNav)
+            .Include(i => i.MaxRoiRangeNav)
+            .FirstOrDefaultAsync(i => i.InvestorId == investorId);
+        if (investor == null) return null;
+        var user = await _userManager.FindByIdAsync(investor.OwnerUserId!);
+        return new InvestorDetailsDTO
+        {
+            id = investor.InvestorId ?? 0,
+            name = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "Unknown",
+            email = user?.Email ?? "",
+            mobile = user?.PhoneNumber ?? "",
+            type = (int)investor.InvestorTypeId!,
+            organization = investor.LegalBusinessName ?? "—",
+            authSingerName = investor.AuthorizedSignerName ?? "Accredited",
+            amount = investor.CapitalAmount ?? 0,
+            reg_number = investor.CompanyRegistrationNo ?? "—",
+            accreditation = investor.AuthorizedSignerName ?? "Accredited",
+            status = (user?.IsActive ?? true) ? "active" : "inactive",
+            date_of_onboarding = investor.DateOfBoarding.HasValue 
+                ? investor.DateOfBoarding.Value.ToString("dd MMM yyyy") 
+                : "15 May 2024",
+            min_roi_id = investor.MinRoiRangeId,
+            max_roi_id = investor.MaxRoiRangeId,
+            roiTypeId = investor.RoiTypeId,
+            bank = investor.BankName,
+            acNumber = investor.BankAccountNo,
+            sortCode = investor.SortCode,
+            notes = investor.Notes
+        };
     }
 
     public async Task<InvestorRegistrationResponse> RegisterAndCreateInvestorAsync(RegisterInvestorDTO dto)
@@ -133,18 +168,21 @@ public class InvestorManagementService : IInvestorManagementService
         {
             OwnerUserId = identityUser.Id,
             DateOfBirth = DateTime.UtcNow.AddYears(-18),
-            TaxIdOrSSN = dto.country ?? "—",
+            TaxIdOrSSN = "-",
             LegalBusinessName = dto.organization ?? "—",
             CompanyRegistrationNo = dto.reg_number ?? "—",
             AuthorizedSignerName = dto.accreditation ?? "Accredited",
             CapitalAmount = dto.amount,
-            Notes = dto.roi ?? "—",
-            InvestorTypeId = dto.type == "Business" ? 2 : 1,
-            InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1,
+            Notes = "Basic Investor Registraion",
+            InvestorTypeId = dto.type,
+            //InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1,
             DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
-            RoiType = dto.roiType,
+            MinRoiRangeId = dto.min_RoiRangeId ?? 1,
+            MaxRoiRangeId = dto.max_RoiRangeId ?? 2,
+            RoiTypeId = dto.roiTypeId,
             BankName = dto.bank,
-            BankAccountNo = dto.acNumber
+            BankAccountNo = dto.acNumber,
+            SortCode = dto.soreCode
         };
 
         // Save via Unit of Work
@@ -181,14 +219,18 @@ public class InvestorManagementService : IInvestorManagementService
         investor.CompanyRegistrationNo = dto.reg_number ?? "—";
         investor.CapitalAmount = dto.amount;
         investor.AuthorizedSignerName = dto.accreditation ?? "Accredited";
-        investor.TaxIdOrSSN = dto.country ?? "—";
-        investor.Notes = dto.roi ?? "—";
-        investor.InvestorTypeId = dto.type == "Business" ? 2 : 1;
-        investor.InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1;
+        investor.AuthorizedSignerName = 
+        investor.TaxIdOrSSN = "—";
+        investor.Notes = dto.notes ?? "Basic";
+        investor.InvestorTypeId = dto.type;
+        //investor.InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1;
         investor.DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow;
-        investor.RoiType = dto.roiType;
+        investor.MinRoiRangeId = dto.min_roi_id;
+        investor.MaxRoiRangeId = dto.max_roi_id;
+        investor.RoiTypeId = dto.roiTypeId;
         investor.BankName = dto.bank;
         investor.BankAccountNo = dto.acNumber;
+        investor.SortCode = dto.sortCode;
 
         if (!string.IsNullOrEmpty(investor.OwnerUserId))
         {

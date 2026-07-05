@@ -12,6 +12,8 @@ public interface IUnitOfWork : IDisposable
     IAsyncRepository<Investor> Investors { get; }
     IAsyncRepository<Project> Projects { get; }
     IAsyncRepository<InvestorCommitment> Commitments { get; }
+    IAsyncRepository<RoiRange> RoiRanges { get; }
+    IAsyncRepository<RoiType> RoiTypes { get; }
 
     //IAsyncRepository<InvestorProfile> InvestorProfiles { get; }
     //IAsyncRepository<IndividualProfile> IndividualProfiles { get; }

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace IMS.Core.Entities;
 
-public class InvestorType
+public class RoiType
 {
     public int Id { get; set; }
     public string? Name { get; set; }

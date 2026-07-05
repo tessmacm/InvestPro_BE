@@ -8,5 +8,6 @@ namespace IMS.Core.Interfaces;
 public interface ILookupService
 {
     Task<IEnumerable<InvestorType>> AllInvestorTypes();
-    Task<IEnumerable<InvestmentInterest>> AllInvestmentInterests();
+    Task<IEnumerable<RoiRange>> AllRoiRanges();
+    Task<IEnumerable<RoiType>> AllRoiTypes();
 }

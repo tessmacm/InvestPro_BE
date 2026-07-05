@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace IMS.Persistance.Migrations
 {
     /// <inheritdoc />
-    public partial class MigrateIMSProd : Migration
+    public partial class ModifyInvestorRRRT : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -28,28 +28,14 @@ namespace IMS.Persistance.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "InvestmentInterests",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    DisplayRange = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    MinAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    MaxAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_InvestmentInterests", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "InvestorTypes",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -72,6 +58,36 @@ namespace IMS.Persistance.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Projects", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoiRanges",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Percentage = table.Column<decimal>(type: "decimal(5,3)", precision: 5, scale: 3, nullable: false),
+                    DisplayLabel = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoiRanges", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoiTypes",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoiTypes", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -109,22 +125,41 @@ namespace IMS.Persistance.Migrations
                     AuthorizedSignerName = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CapitalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
                     Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DateOfBoarding = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    MinRoiRangeId = table.Column<int>(type: "int", nullable: true),
+                    MaxRoiRangeId = table.Column<int>(type: "int", nullable: true),
+                    RoiTypeId = table.Column<int>(type: "int", nullable: true),
+                    BankName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    BankAccountNo = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SortCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     InvestorTypeId = table.Column<int>(type: "int", nullable: true),
-                    InvestmentInterestId = table.Column<int>(type: "int", nullable: true)
+                    IsAgreedToTerms = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Investors", x => x.InvestorId);
                     table.ForeignKey(
-                        name: "FK_Investors_InvestmentInterests_InvestmentInterestId",
-                        column: x => x.InvestmentInterestId,
-                        principalTable: "InvestmentInterests",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
                         name: "FK_Investors_InvestorTypes_InvestorTypeId",
                         column: x => x.InvestorTypeId,
                         principalTable: "InvestorTypes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Investors_RoiRanges_MaxRoiRangeId",
+                        column: x => x.MaxRoiRangeId,
+                        principalTable: "RoiRanges",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Investors_RoiRanges_MinRoiRangeId",
+                        column: x => x.MinRoiRangeId,
+                        principalTable: "RoiRanges",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Investors_RoiTypes_RoiTypeId",
+                        column: x => x.RoiTypeId,
+                        principalTable: "RoiTypes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -134,12 +169,12 @@ namespace IMS.Persistance.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Discriminator = table.Column<string>(type: "nvarchar(21)", maxLength: 21, nullable: false),
-                    FirstName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    LastName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    IsActive = table.Column<bool>(type: "bit", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    FirstName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    LastName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     InvestorId = table.Column<int>(type: "int", nullable: true),
+                    Discriminator = table.Column<string>(type: "nvarchar(21)", maxLength: 21, nullable: false),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -193,6 +228,82 @@ namespace IMS.Persistance.Migrations
                         principalTable: "Projects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Payments",
+                columns: table => new
+                {
+                    PaymentId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    InvestorId = table.Column<int>(type: "int", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    PaymentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Payments", x => x.PaymentId);
+                    table.ForeignKey(
+                        name: "FK_Payments_Investors_InvestorId",
+                        column: x => x.InvestorId,
+                        principalTable: "Investors",
+                        principalColumn: "InvestorId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoiContracts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    InvestorId = table.Column<int>(type: "int", nullable: false),
+                    ProjectId = table.Column<int>(type: "int", nullable: false),
+                    RoiAgreed = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    MonthlyPayment = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    NextPaymentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoiContracts", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RoiContracts_Investors_InvestorId",
+                        column: x => x.InvestorId,
+                        principalTable: "Investors",
+                        principalColumn: "InvestorId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_RoiContracts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SystemNotifications",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Title = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    EventType = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsRead = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    InvestorId = table.Column<int>(type: "int", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SystemNotifications", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SystemNotifications_Investors_InvestorId",
+                        column: x => x.InvestorId,
+                        principalTable: "Investors",
+                        principalColumn: "InvestorId");
                 });
 
             migrationBuilder.CreateTable(
@@ -313,23 +424,35 @@ namespace IMS.Persistance.Migrations
                 });
 
             migrationBuilder.InsertData(
-                table: "InvestmentInterests",
-                columns: new[] { "Id", "DisplayRange", "MaxAmount", "MinAmount" },
+                table: "InvestorTypes",
+                columns: new[] { "Id", "Description", "Name", "Status" },
                 values: new object[,]
                 {
-                    { 1, "50,000 - 100,000", 100000m, 50000m },
-                    { 2, "100,000 - 500,000", 500000m, 100000m },
-                    { 3, "500,000 - 1,000,000", 1000000m, 500000m },
-                    { 4, "1,000,000+", 999999999999.99m, 1000000m }
+                    { 1, null, "Individual", "Active" },
+                    { 2, null, "Business", "Active" }
                 });
 
             migrationBuilder.InsertData(
-                table: "InvestorTypes",
-                columns: new[] { "Id", "Description", "Name" },
+                table: "RoiRanges",
+                columns: new[] { "Id", "DisplayLabel", "Percentage", "Status" },
                 values: new object[,]
                 {
-                    { 1, null, "Individual" },
-                    { 2, null, "Business" }
+                    { 1, "5%", 0.050m, "Active" },
+                    { 2, "7.5%", 0.075m, "Active" },
+                    { 3, "10%", 0.100m, "Active" },
+                    { 4, "12.5%", 0.125m, "Active" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "RoiTypes",
+                columns: new[] { "Id", "Description", "Name", "Status" },
+                values: new object[,]
+                {
+                    { 1, null, "Fixed", "Active" },
+                    { 2, null, "Weekly", "Active" },
+                    { 3, null, "Monthly", "Active" },
+                    { 4, null, "Quarterly", "Active" },
+                    { 5, null, "Yearly", "Active" }
                 });
 
             migrationBuilder.CreateIndex(
@@ -399,14 +522,44 @@ namespace IMS.Persistance.Migrations
                 column: "UploadedById");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Investors_InvestmentInterestId",
-                table: "Investors",
-                column: "InvestmentInterestId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Investors_InvestorTypeId",
                 table: "Investors",
                 column: "InvestorTypeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Investors_MaxRoiRangeId",
+                table: "Investors",
+                column: "MaxRoiRangeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Investors_MinRoiRangeId",
+                table: "Investors",
+                column: "MinRoiRangeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Investors_RoiTypeId",
+                table: "Investors",
+                column: "RoiTypeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Payments_InvestorId",
+                table: "Payments",
+                column: "InvestorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RoiContracts_InvestorId",
+                table: "RoiContracts",
+                column: "InvestorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RoiContracts_ProjectId",
+                table: "RoiContracts",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SystemNotifications_InvestorId",
+                table: "SystemNotifications",
+                column: "InvestorId");
         }
 
         /// <inheritdoc />
@@ -434,22 +587,34 @@ namespace IMS.Persistance.Migrations
                 name: "InvestorDocuments");
 
             migrationBuilder.DropTable(
-                name: "AspNetRoles");
+                name: "Payments");
 
             migrationBuilder.DropTable(
-                name: "Projects");
+                name: "RoiContracts");
+
+            migrationBuilder.DropTable(
+                name: "SystemNotifications");
+
+            migrationBuilder.DropTable(
+                name: "AspNetRoles");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
 
             migrationBuilder.DropTable(
+                name: "Projects");
+
+            migrationBuilder.DropTable(
                 name: "Investors");
 
             migrationBuilder.DropTable(
-                name: "InvestmentInterests");
+                name: "InvestorTypes");
 
             migrationBuilder.DropTable(
-                name: "InvestorTypes");
+                name: "RoiRanges");
+
+            migrationBuilder.DropTable(
+                name: "RoiTypes");
         }
     }
 }

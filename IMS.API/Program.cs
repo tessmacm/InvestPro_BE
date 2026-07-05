@@ -122,6 +122,21 @@ using (var scope = app.Services.CreateScope())
     }
     #endregion
     // Default admin and custom seed data removed to support completely clean database on startup.
+    #region Creating Admin
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var adminUser = configuration.GetSection("defaultAdminUser").Value!;
+    var adminPassword = configuration.GetSection("defaultAdminPassword").Value!;
+    var adminDefaultRole = configuration.GetSection("defaultAdminRole").Value!;
+    var userExist = userManager.FindByEmailAsync(adminUser).Result;
+
+    if (userExist == null)
+    {
+        var saUser = new ApplicationUser() { UserName = adminUser, Email = adminUser };
+        var userResult = userManager.CreateAsync(saUser, adminPassword).Result;
+        var defaultRoleResult = userManager.AddToRoleAsync(saUser, adminDefaultRole).Result;
+    }
+
+    #endregion 
 }
 
 // Default Settings goes here Roles, Admin, etd.

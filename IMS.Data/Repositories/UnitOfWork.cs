@@ -16,6 +16,8 @@ public class UnitOfWork : IUnitOfWork
     public IAsyncRepository<Investor> Investors { get; }
     public IAsyncRepository<Project> Projects { get; }
     public IAsyncRepository<InvestorCommitment> Commitments {  get; }
+    public IAsyncRepository<RoiRange> RoiRanges { get; }
+    public IAsyncRepository<RoiType> RoiTypes { get; }
 
     public UnitOfWork(ApplicationDbContext context)
     {
@@ -25,6 +27,8 @@ public class UnitOfWork : IUnitOfWork
         Investors = new EfRepository<Investor>(_context);
         Projects = new EfRepository<Project>(_context);
         Commitments = new EfRepository<InvestorCommitment>(_context);
+        RoiTypes = new EfRepository<RoiType>(_context);
+        RoiRanges = new EfRepository<RoiRange>(_context);
     }
 
     public async Task<int> CompleteAsync()

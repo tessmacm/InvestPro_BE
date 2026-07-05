@@ -11,29 +11,33 @@ namespace IMS.Persistance.Repositories;
 public class LookupService : ILookupService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public LookupService(ApplicationDbContext context)
+    public LookupService(ApplicationDbContext context, 
+        IUnitOfWork unitOfWork)
     {
         _context = context;
-    }
-
-    public async Task<IEnumerable<InvestmentInterest>> AllInvestmentInterests()
-    {
-        
-        var invesses = _context.InvestmentInterests
-                        .Select(static r => new InvIntRecord(r.Id, r.DisplayRange)).ToListAsync();
-
-        return (IEnumerable<InvestmentInterest>)invesses;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<IEnumerable<InvestorType>> AllInvestorTypes()
     {
-        var invites = _context.InvestorTypes
-                      .Select(t => new InvType(t.Id,t.Name)).ToListAsync();
+        var investorTypes = _unitOfWork.InvestorTypes.GetAllAsync();
+        return await investorTypes;
 
-        return (IEnumerable<InvestorType>)invites;
+        //return (IEnumerable<InvestorType>)investorTypes;
+    }
+
+    public async Task<IEnumerable<RoiRange>> AllRoiRanges()
+    {
+        var roiRanges = _unitOfWork.RoiRanges.GetAllAsync();
+        return await roiRanges;
+    }
+
+    public async Task<IEnumerable<RoiType>> AllRoiTypes()
+    {
+        var roiTypes = _unitOfWork.RoiTypes.GetAllAsync();
+        return await roiTypes;
     }
 }
 
-internal record InvIntRecord(int Id, string DisplayRange);
-internal record InvType(int Id, string Name);

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IMS.Persistance.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260629091808_AddPaymentsAndRoi")]
-    partial class AddPaymentsAndRoi
+    [Migration("20260703061105_ModifyInvestorRRRT")]
+    partial class ModifyInvestorRRRT
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,61 +24,6 @@ namespace IMS.Persistance.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("IMS.Core.Entities.InvestmentInterest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("DisplayRange")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("MaxAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("MinAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("InvestmentInterests");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            DisplayRange = "50,000 - 100,000",
-                            MaxAmount = 100000m,
-                            MinAmount = 50000m
-                        },
-                        new
-                        {
-                            Id = 2,
-                            DisplayRange = "100,000 - 500,000",
-                            MaxAmount = 500000m,
-                            MinAmount = 100000m
-                        },
-                        new
-                        {
-                            Id = 3,
-                            DisplayRange = "500,000 - 1,000,000",
-                            MaxAmount = 1000000m,
-                            MinAmount = 500000m
-                        },
-                        new
-                        {
-                            Id = 4,
-                            DisplayRange = "1,000,000+",
-                            MaxAmount = 999999999999.99m,
-                            MinAmount = 1000000m
-                        });
-                });
 
             modelBuilder.Entity("IMS.Core.Entities.Investor", b =>
                 {
@@ -109,14 +54,20 @@ namespace IMS.Persistance.Migrations
                     b.Property<DateTime?>("DateOfBoarding")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("InvestmentInterestId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("InvestorTypeId")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsAgreedToTerms")
+                        .HasColumnType("bit");
+
                     b.Property<string>("LegalBusinessName")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("MaxRoiRangeId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MinRoiRangeId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -124,7 +75,10 @@ namespace IMS.Persistance.Migrations
                     b.Property<string>("OwnerUserId")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RoiType")
+                    b.Property<int?>("RoiTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SortCode")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TaxIdOrSSN")
@@ -132,9 +86,13 @@ namespace IMS.Persistance.Migrations
 
                     b.HasKey("InvestorId");
 
-                    b.HasIndex("InvestmentInterestId");
-
                     b.HasIndex("InvestorTypeId");
+
+                    b.HasIndex("MaxRoiRangeId");
+
+                    b.HasIndex("MinRoiRangeId");
+
+                    b.HasIndex("RoiTypeId");
 
                     b.ToTable("Investors", (string)null);
                 });
@@ -224,6 +182,9 @@ namespace IMS.Persistance.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -235,12 +196,14 @@ namespace IMS.Persistance.Migrations
                         new
                         {
                             Id = 1,
-                            Name = "Individual"
+                            Name = "Individual",
+                            Status = "Active"
                         },
                         new
                         {
                             Id = 2,
-                            Name = "Business"
+                            Name = "Business",
+                            Status = "Active"
                         });
                 });
 
@@ -337,6 +300,115 @@ namespace IMS.Persistance.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("RoiContracts");
+                });
+
+            modelBuilder.Entity("IMS.Core.Entities.RoiRange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DisplayLabel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("Percentage")
+                        .HasPrecision(5, 3)
+                        .HasColumnType("decimal(5,3)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RoiRanges");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            DisplayLabel = "5%",
+                            Percentage = 0.050m,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            DisplayLabel = "7.5%",
+                            Percentage = 0.075m,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            DisplayLabel = "10%",
+                            Percentage = 0.100m,
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            DisplayLabel = "12.5%",
+                            Percentage = 0.125m,
+                            Status = "Active"
+                        });
+                });
+
+            modelBuilder.Entity("IMS.Core.Entities.RoiType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RoiTypes");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Name = "Fixed",
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Weekly",
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Monthly",
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Name = "Quarterly",
+                            Status = "Active"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Name = "Yearly",
+                            Status = "Active"
+                        });
                 });
 
             modelBuilder.Entity("IMS.Core.Entities.SystemNotification", b =>
@@ -607,19 +679,33 @@ namespace IMS.Persistance.Migrations
 
             modelBuilder.Entity("IMS.Core.Entities.Investor", b =>
                 {
-                    b.HasOne("IMS.Core.Entities.InvestmentInterest", "InvestmentInterestNav")
-                        .WithMany()
-                        .HasForeignKey("InvestmentInterestId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("IMS.Core.Entities.InvestorType", "InvestorTypeNav")
                         .WithMany()
                         .HasForeignKey("InvestorTypeId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("InvestmentInterestNav");
+                    b.HasOne("IMS.Core.Entities.RoiRange", "MaxRoiRangeNav")
+                        .WithMany()
+                        .HasForeignKey("MaxRoiRangeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("IMS.Core.Entities.RoiRange", "MinRoiRangeNav")
+                        .WithMany()
+                        .HasForeignKey("MinRoiRangeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("IMS.Core.Entities.RoiType", "RoiTypeNav")
+                        .WithMany()
+                        .HasForeignKey("RoiTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("InvestorTypeNav");
+
+                    b.Navigation("MaxRoiRangeNav");
+
+                    b.Navigation("MinRoiRangeNav");
+
+                    b.Navigation("RoiTypeNav");
                 });
 
             modelBuilder.Entity("IMS.Core.Entities.InvestorCommitment", b =>

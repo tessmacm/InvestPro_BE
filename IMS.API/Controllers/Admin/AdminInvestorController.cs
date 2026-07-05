@@ -12,7 +12,7 @@ namespace IMS.API.Controllers.Admin
 {
     [Route("api/admin/investors")]
     [ApiController]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme,Policy = "ElevatedOrManager")]
     public class AdminInvestorController : ControllerBase
     {
         private readonly IInvestorManagementService _investorService;
@@ -32,20 +32,26 @@ namespace IMS.API.Controllers.Admin
         [HttpGet]
         public async Task<IActionResult> GetAllInvestors()
         {
+            // Fetch all Active Investors using the service
             var investors = await _investorService.GetAllInvestorsAsync();
-            if (User.IsInRole("investor"))
-            {
-                var user = await _userManager.GetUserAsync(User);
-                var investorId = user?.InvestorId ?? 0;
-                investors = investors.Where(i => i.id == investorId).ToList();
-            }
             return Ok(investors);
+        }
+
+        [HttpGet("{Id}")]
+        public async Task<IActionResult> GetInvestorById(int Id)
+        {
+            var investor = await _investorService.GetInvestorDetailsByIdAsync(Id);
+           
+            if (investor == null)
+            {
+                return NotFound(new { Message = "Investor not found." });
+            }
+            return Ok(investor);
         }
 
 
         // POST: api/admin/investors/create
         [HttpPost("create")]
-        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> AdminCreateInvestorProfile([FromBody] RegisterInvestorDTO regCreateDto)
         {
             var response = await _investorService.RegisterAndCreateInvestorAsync(regCreateDto);
@@ -71,7 +77,6 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpPut("update/{Id}")]
-        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> UpdateInvestorDetails(int Id, [FromBody] UpdateInvestorDetailsDTO updateDto)
         {
             var result = await _investorService.UpdateInvestorDetailsAsync(Id, updateDto);
@@ -81,7 +86,6 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpDelete("{Id}")]
-        [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> DeleteInvestorProfile(int Id)
         {
             var result = await _investorService.DeleteInvestorProfileAsync(Id);
