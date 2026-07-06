@@ -16,11 +16,13 @@ namespace IMS.API.Controllers.Admin
     {
         private readonly IInvestorDocumentService _documentService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IWebHostEnvironment _env;
 
-        public InvestorDocumentsController(IInvestorDocumentService investorDocumentService, UserManager<ApplicationUser> userManager)
+        public InvestorDocumentsController(IInvestorDocumentService investorDocumentService, UserManager<ApplicationUser> userManager, IWebHostEnvironment env)
         {
             _documentService = investorDocumentService;
             _userManager = userManager;
+            _env = env;
         }
 
         [HttpGet]
@@ -58,7 +60,7 @@ namespace IMS.API.Controllers.Admin
 
         [HttpPost]
         [Authorize(Policy = "ElevatedOrManager")]
-        public async Task<IActionResult> UploadInvestorDoc([FromQuery] int id, [FromBody] UploadDocumentDTO dto)
+        public async Task<IActionResult> UploadInvestorDoc([FromQuery] int id, [FromForm] string title, [FromForm] string type, IFormFile file)
         {
             var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -66,11 +68,42 @@ namespace IMS.API.Controllers.Admin
             {
                 return Unauthorized("Unable to resolve Admin User Identity");
             }
-            
-            dto.uploaded_by = adminUserId;
+
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest("No file uploaded.");
+            }
+
+            // Create uploads directory if it does not exist
+            var uploadsFolder = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads");
+            if (!Directory.Exists(uploadsFolder))
+            {
+                Directory.CreateDirectory(uploadsFolder);
+            }
+
+            // Save the file
+            var uniqueFileName = Guid.NewGuid().ToString() + "_" + Path.GetFileName(file.FileName);
+            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var fileUrl = $"/uploads/{uniqueFileName}";
+            var fileSizeStr = $"{(file.Length / (1024.0 * 1024.0)):F1} MB";
+
+            var dto = new UploadDocumentDTO
+            {
+                title = string.IsNullOrEmpty(title) ? file.FileName : title,
+                type = type,
+                size = fileSizeStr,
+                url = fileUrl,
+                uploaded_by = adminUserId
+            };
 
             var success = await _documentService.UploadDocumentMetadataAsync(id, dto);
-            return Ok(new { message = "Document uploaded successfully." });
+            return Ok(new { message = "Document uploaded successfully.", url = fileUrl });
         }
 
         [HttpDelete("{id}")]

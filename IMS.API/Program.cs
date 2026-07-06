@@ -149,7 +149,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors(x => x.AllowAnyOrigin()
                   .AllowAnyMethod()
                   .AllowAnyHeader());
-    
+
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
