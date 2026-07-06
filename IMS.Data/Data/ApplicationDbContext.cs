@@ -22,6 +22,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RoiRange> RoiRanges => Set<RoiRange>();
     public DbSet<RoiType> RoiTypes => Set<RoiType>();
     public DbSet<SystemNotification> SystemNotifications => Set<SystemNotification>();
+    public DbSet<SystemReport> SystemReports => Set<SystemReport>();
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
