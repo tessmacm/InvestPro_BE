@@ -21,11 +21,13 @@ public class ReportsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IWebHostEnvironment _env;
 
-    public ReportsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public ReportsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IWebHostEnvironment env)
     {
         _context = context;
         _userManager = userManager;
+        _env = env;
     }
 
     [HttpGet]
@@ -92,25 +94,49 @@ public class ReportsController : ControllerBase
 
     [HttpPost]
     [Authorize(Policy = "ElevatedOrManager")]
-    public async Task<IActionResult> Create([FromBody] UploadReportDTO dto)
+    public async Task<IActionResult> Create([FromForm] string title, [FromForm] string type, [FromForm] string targetInvestorIds, IFormFile file)
     {
         var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest("No file uploaded.");
+        }
+
+        // Create uploads/reports directory if it does not exist
+        var reportsFolder = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads", "reports");
+        if (!Directory.Exists(reportsFolder))
+        {
+            Directory.CreateDirectory(reportsFolder);
+        }
+
+        // Save the file
+        var uniqueFileName = Guid.NewGuid().ToString() + "_" + Path.GetFileName(file.FileName);
+        var filePath = Path.Combine(reportsFolder, uniqueFileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var fileUrl = $"/uploads/reports/{uniqueFileName}";
+        var fileSizeStr = $"{(file.Length / (1024.0 * 1024.0)):F1} MB";
         
         var report = new SystemReport
         {
-            Title = dto.Title,
-            Type = dto.Type,
-            Size = dto.Size,
-            Url = dto.Url,
+            Title = string.IsNullOrEmpty(title) ? file.FileName : title,
+            Type = type,
+            Size = fileSizeStr,
+            Url = fileUrl,
             UploadedBy = adminUserId ?? "System Admin",
             CreatedAt = DateTime.UtcNow,
-            TargetInvestorIds = string.IsNullOrEmpty(dto.TargetInvestorIds) ? "all" : dto.TargetInvestorIds
+            TargetInvestorIds = string.IsNullOrEmpty(targetInvestorIds) ? "all" : targetInvestorIds
         };
 
         _context.SystemReports.Add(report);
         await _context.SaveChangesAsync();
 
-        return Ok(new { success = true, message = "Report uploaded successfully." });
+        return Ok(new { success = true, message = "Report uploaded successfully.", url = fileUrl });
     }
 
     [HttpDelete("{id}")]

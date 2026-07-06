@@ -223,7 +223,6 @@ public class InvestorManagementService : IInvestorManagementService
         investor.CompanyRegistrationNo = dto.reg_number ?? "—";
         investor.CapitalAmount = dto.amount;
         investor.AuthorizedSignerName = dto.accreditation ?? "Accredited";
-        investor.AuthorizedSignerName = 
         investor.TaxIdOrSSN = "—";
         investor.Notes = dto.notes ?? "Basic";
         investor.InvestorTypeId = dto.type;
