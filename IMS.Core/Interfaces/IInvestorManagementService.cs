@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using static IMS.Core.Interfaces.UpdateInvestorDetailsDTO;
 
@@ -55,6 +56,7 @@ public class InvestorDetailsDTO
 }
 public class CreateInvestorProfileDTO
 {
+    [Required, EmailAddress(ErrorMessage = "Invalid email format.")]
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
@@ -66,6 +68,7 @@ public class UpdateInvestorDetailsDTO
 {
     public string? name { get; set; }
     public int? type { get; set; }
+    [EmailAddress(ErrorMessage = "Invalid email format.")]
     public string? email { get; set; }
     public string? mobile { get; set; }
     public string? organization { get; set; }
@@ -87,6 +90,7 @@ public class RegisterInvestorDTO
 {
     public string? name { get; set; }
     public int? type { get; set; } 
+    [EmailAddress(ErrorMessage = "Invalid email format.")]
     public string? email { get; set; } 
     public string? password { get; set; } 
     public string? mobile { get; set; } 

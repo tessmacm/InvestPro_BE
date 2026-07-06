@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -27,24 +27,9 @@ public class ContextSeed
         var defaultAdminEmail = "admin@investpro.com";
         var defaultAdmin = await userManager.FindByEmailAsync(defaultAdminEmail);
 
-        if (defaultAdmin == null)
+        if (defaultAdmin != null)
         {
-            var adminUser = new ApplicationUser
-            {
-                UserName = defaultAdminEmail,
-                Email = defaultAdminEmail,
-                FirstName = "System",
-                LastName = "Adminstrator",
-                EmailConfirmed = true,
-                InvestorId = null, // No investor profile for admin
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-            var createAdminResult = await userManager.CreateAsync(adminUser, "Admin@123");
-            if (createAdminResult.Succeeded)
-            {
-                await userManager.AddToRoleAsync(adminUser, "Super-Admin");
-            }
+            await userManager.DeleteAsync(defaultAdmin);
         }
     }
 }
