@@ -96,7 +96,7 @@ public class ReportsController : ControllerBase
     [Authorize(Policy = "ElevatedOrManager")]
     public async Task<IActionResult> Create([FromForm] string title, [FromForm] string type, [FromForm] string targetInvestorIds, IFormFile file)
     {
-        var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var adminUserId = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (file == null || file.Length == 0)
         {

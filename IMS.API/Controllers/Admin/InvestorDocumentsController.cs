@@ -62,7 +62,7 @@ namespace IMS.API.Controllers.Admin
         [Authorize(Policy = "ElevatedOrManager")]
         public async Task<IActionResult> UploadInvestorDoc([FromQuery] int id, [FromForm] string title, [FromForm] string type, IFormFile file)
         {
-            var adminUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var adminUserId = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             if (string.IsNullOrEmpty(adminUserId))
             {
