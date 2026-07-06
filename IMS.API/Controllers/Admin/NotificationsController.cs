@@ -27,12 +27,14 @@ public class NotificationsController : ControllerBase
     {
         var query = _context.SystemNotifications.Include(n => n.InvestorNav).AsQueryable();
 
-        if (User.IsInRole("investor"))
+        if (User.IsInRole("investor") || User.IsInRole("Investor"))
         {
             var claim = User.FindFirst("investorId");
             if (claim != null && int.TryParse(claim.Value, out var id))
             {
-                query = query.Where(n => n.InvestorId == id || n.InvestorId == null);
+                query = query.Where(n => n.InvestorId == id || 
+                                         (n.InvestorId == null && n.TargetInvestorIds == null) ||
+                                         n.TargetInvestorIds.Contains("," + id + ","));
             }
             else
             {
@@ -41,20 +43,40 @@ public class NotificationsController : ControllerBase
         }
         else if (investorId.HasValue)
         {
-            query = query.Where(n => n.InvestorId == investorId);
+            query = query.Where(n => n.InvestorId == investorId || n.TargetInvestorIds.Contains("," + investorId + ","));
         }
 
         var list = await query.ToListAsync();
-        return Ok(list.Select(n => new {
-            id = n.Id,
-            title = n.Title,
-            message = n.Message,
-            eventType = n.EventType,
-            isRead = n.IsRead,
-            createdAt = n.CreatedAt,
-            investorId = n.InvestorId,
-            investorName = n.InvestorNav != null ? $"{n.InvestorNav.LegalBusinessName ?? "Investor"}" : "All Investors",
-            status = n.Status
+        var allInvestors = await _context.Investors.ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
+
+        return Ok(list.Select(n => {
+            string resolvedTo = "All Investors";
+            if (n.InvestorId.HasValue)
+            {
+                resolvedTo = allInvestors.TryGetValue(n.InvestorId.Value, out var name) ? name : "Investor";
+            }
+            else if (!string.IsNullOrEmpty(n.TargetInvestorIds))
+            {
+                var targetIds = n.TargetInvestorIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                                   .Select(s => int.TryParse(s, out var id) ? id : 0)
+                                                   .Where(id => id > 0)
+                                                   .ToList();
+                var names = targetIds.Select(id => allInvestors.TryGetValue(id, out var name) ? name : $"Inv#{id}");
+                resolvedTo = string.Join(", ", names);
+            }
+
+            return new {
+                id = n.Id,
+                title = n.Title,
+                message = n.Message,
+                eventType = n.EventType,
+                isRead = n.IsRead,
+                createdAt = n.CreatedAt,
+                investorId = n.InvestorId,
+                targetInvestorIds = n.TargetInvestorIds,
+                investorName = resolvedTo,
+                status = n.Status
+            };
         }));
     }
 
@@ -63,6 +85,23 @@ public class NotificationsController : ControllerBase
     {
         var n = await _context.SystemNotifications.Include(n => n.InvestorNav).FirstOrDefaultAsync(x => x.Id == id);
         if (n == null) return NotFound();
+
+        var allInvestors = await _context.Investors.ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
+        string resolvedTo = "All Investors";
+        if (n.InvestorId.HasValue)
+        {
+            resolvedTo = allInvestors.TryGetValue(n.InvestorId.Value, out var name) ? name : "Investor";
+        }
+        else if (!string.IsNullOrEmpty(n.TargetInvestorIds))
+        {
+            var targetIds = n.TargetInvestorIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                               .Select(s => int.TryParse(s, out var id) ? id : 0)
+                                               .Where(id => id > 0)
+                                               .ToList();
+            var names = targetIds.Select(tid => allInvestors.TryGetValue(tid, out var name) ? name : $"Inv#{tid}");
+            resolvedTo = string.Join(", ", names);
+        }
+
         return Ok(new {
             id = n.Id,
             title = n.Title,
@@ -71,7 +110,8 @@ public class NotificationsController : ControllerBase
             isRead = n.IsRead,
             createdAt = n.CreatedAt,
             investorId = n.InvestorId,
-            investorName = n.InvestorNav != null ? $"{n.InvestorNav.LegalBusinessName ?? "Investor"}" : "All Investors",
+            targetInvestorIds = n.TargetInvestorIds,
+            investorName = resolvedTo,
             status = n.Status
         });
     }
@@ -97,6 +137,8 @@ public class NotificationsController : ControllerBase
         n.EventType = model.EventType;
         n.IsRead = model.IsRead;
         n.Status = model.Status;
+        n.InvestorId = model.InvestorId;
+        n.TargetInvestorIds = model.TargetInvestorIds;
 
         await _context.SaveChangesAsync();
         return Ok(n);

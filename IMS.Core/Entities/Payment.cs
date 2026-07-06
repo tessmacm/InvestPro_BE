@@ -9,5 +9,7 @@ public class Payment
     public Investor? InvestorNav { get; set; }
     public decimal Amount { get; set; }
     public DateTime PaymentDate { get; set; }
-    public string Status { get; set; } = "Completed";
+    public string Status { get; set; } = "Pending";
+    public bool IsSent { get; set; } = false;
+    public bool IsReceived { get; set; } = false;
 }

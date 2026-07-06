@@ -189,6 +189,10 @@ public class InvestorManagementService : IInvestorManagementService
         await _context.Investors.AddAsync(newInvestor);
         await _unitOfWork.CompleteAsync();
 
+        // Auto-generate payment schedule
+        await GeneratePaymentsForInvestorAsync(newInvestor);
+        await _unitOfWork.CompleteAsync();
+
         // Step 3: Backward link the InvestorId reference
         identityUser.InvestorId = newInvestor.InvestorId;
         await _userManager.UpdateAsync(identityUser);
@@ -232,6 +236,16 @@ public class InvestorManagementService : IInvestorManagementService
         investor.BankAccountNo = dto.acNumber;
         investor.SortCode = dto.sortCode;
 
+        // Recalculate pending payments
+        var pendingPayments = await _context.Payments
+            .Where(p => p.InvestorId == profileId && !p.IsSent && !p.IsReceived)
+            .ToListAsync();
+        if (pendingPayments.Any())
+        {
+            _context.Payments.RemoveRange(pendingPayments);
+        }
+        await GeneratePaymentsForInvestorAsync(investor);
+
         if (!string.IsNullOrEmpty(investor.OwnerUserId))
         {
             var user = await _userManager.FindByIdAsync(investor.OwnerUserId);
@@ -257,5 +271,83 @@ public class InvestorManagementService : IInvestorManagementService
         }
 
         return await _unitOfWork.CompleteAsync() >= 0;
+    }
+
+    private async Task GeneratePaymentsForInvestorAsync(Investor investor)
+    {
+        decimal percentage = 0.05m;
+        var roiRange = await _context.RoiRanges.FindAsync(investor.MinRoiRangeId ?? 1);
+        if (roiRange != null)
+        {
+            percentage = roiRange.Percentage;
+        }
+
+        int numPayments = 12;
+        int monthsInterval = 1;
+        decimal divisor = 12m;
+
+        if (investor.RoiTypeId == 1) // Fixed
+        {
+            numPayments = 1;
+            monthsInterval = 0;
+            divisor = 1m;
+        }
+        else if (investor.RoiTypeId == 2) // Weekly
+        {
+            numPayments = 52;
+            monthsInterval = 0;
+            divisor = 52m;
+        }
+        else if (investor.RoiTypeId == 4) // Quarterly
+        {
+            numPayments = 4;
+            monthsInterval = 3;
+            divisor = 4m;
+        }
+        else if (investor.RoiTypeId == 5) // Yearly
+        {
+            numPayments = 1;
+            monthsInterval = 12;
+            divisor = 1m;
+        }
+        else // Monthly (Default)
+        {
+            numPayments = 12;
+            monthsInterval = 1;
+            divisor = 12m;
+        }
+
+        decimal capital = investor.CapitalAmount ?? 0m;
+        decimal paymentAmount = Math.Round((capital * percentage) / divisor, 2);
+
+        var onboardingDate = investor.DateOfBoarding ?? DateTime.UtcNow;
+
+        for (int i = 1; i <= numPayments; i++)
+        {
+            DateTime paymentDate;
+            if (investor.RoiTypeId == 2) // Weekly
+            {
+                paymentDate = onboardingDate.AddDays(i * 7);
+            }
+            else if (investor.RoiTypeId == 1) // Fixed
+            {
+                paymentDate = onboardingDate;
+            }
+            else
+            {
+                paymentDate = onboardingDate.AddMonths(i * monthsInterval);
+            }
+
+            var payment = new Payment
+            {
+                InvestorId = investor.InvestorId ?? 0,
+                Amount = paymentAmount,
+                PaymentDate = paymentDate,
+                Status = "Pending",
+                IsSent = false,
+                IsReceived = false
+            };
+            await _context.Payments.AddAsync(payment);
+        }
     }
 }

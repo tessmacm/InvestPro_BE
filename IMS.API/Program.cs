@@ -176,23 +176,36 @@ app.UseExceptionHandler(options =>
 
 app.MapControllers();
 
-//using (var scope = app.Services.CreateScope())
-//{
-//    var services = scope.ServiceProvider;
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
 
-//    try
-//    {
-//        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-//        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        // Ensure baseline migration is registered as applied since the tables already exist
+        context.Database.ExecuteSqlRaw(@"
+            IF NOT EXISTS (SELECT * FROM [__EFMigrationsHistory] WHERE [MigrationId] = '20260703061105_ModifyInvestorRRRT')
+            BEGIN
+                INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion]) 
+                VALUES ('20260703061105_ModifyInvestorRRRT', '9.0.0')
+            END
+        ");
 
-//        // Seed Roles and Admin User
-//        await ContextSeed.SeedRolesAndAdminAdync(userManager, roleManager);
-//    }
-//    catch (Exception ex)
-//    {
-//      var logger = services.GetRequiredService<ILogger<Program>>();
-//      logger.LogError(ex, "An error occurred seeding the DB.");
-//    }
-//}
+        // Apply new pending migrations
+        context.Database.Migrate();
+
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+
+        // Seed Roles and Admin User
+        await ContextSeed.SeedRolesAndAdminAdync(userManager, roleManager);
+    }
+    catch (Exception ex)
+    {
+      var logger = services.GetRequiredService<ILogger<Program>>();
+      logger.LogError(ex, "An error occurred seeding or migrating the DB.");
+    }
+}
 
 app.Run();

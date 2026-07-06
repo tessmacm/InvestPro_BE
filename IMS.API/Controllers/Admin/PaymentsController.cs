@@ -27,7 +27,7 @@ public class PaymentsController : ControllerBase
     {
         var query = _context.Payments.Include(p => p.InvestorNav).AsQueryable();
 
-        if (User.IsInRole("investor"))
+        if (User.IsInRole("investor") || User.IsInRole("Investor"))
         {
             var claim = User.FindFirst("investorId");
             if (claim != null && int.TryParse(claim.Value, out var id))
@@ -51,7 +51,9 @@ public class PaymentsController : ControllerBase
             investorName = p.InvestorNav != null ? $"{p.InvestorNav.LegalBusinessName ?? "Investor"}" : "Investor",
             amount = p.Amount,
             paymentDate = p.PaymentDate,
-            status = p.Status
+            status = p.Status,
+            isSent = p.IsSent,
+            isReceived = p.IsReceived
         }));
     }
 
@@ -66,7 +68,9 @@ public class PaymentsController : ControllerBase
             investorName = p.InvestorNav != null ? $"{p.InvestorNav.LegalBusinessName ?? "Investor"}" : "Investor",
             amount = p.Amount,
             paymentDate = p.PaymentDate,
-            status = p.Status
+            status = p.Status,
+            isSent = p.IsSent,
+            isReceived = p.IsReceived
         });
     }
 
@@ -77,5 +81,44 @@ public class PaymentsController : ControllerBase
         _context.Payments.Add(model);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = model.PaymentId }, model);
+    }
+
+    [HttpPost("{id}/acknowledge-sent")]
+    [Authorize(Policy = "ElevatedOrManager")]
+    public async Task<IActionResult> AcknowledgeSent(int id)
+    {
+        var p = await _context.Payments.FindAsync(id);
+        if (p == null) return NotFound();
+
+        p.IsSent = true;
+        p.Status = p.IsReceived ? "Received" : "Sent";
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, status = p.Status });
+    }
+
+    [HttpPost("{id}/acknowledge-received")]
+    public async Task<IActionResult> AcknowledgeReceived(int id)
+    {
+        var p = await _context.Payments.FindAsync(id);
+        if (p == null) return NotFound();
+
+        if (User.IsInRole("investor") || User.IsInRole("Investor"))
+        {
+            var claim = User.FindFirst("investorId");
+            if (claim == null || !int.TryParse(claim.Value, out var invId) || p.InvestorId != invId)
+            {
+                return Forbid();
+            }
+        }
+
+        if (!p.IsSent)
+        {
+            return BadRequest(new { message = "Cannot acknowledge receipt before payment is acknowledged as sent by admin." });
+        }
+
+        p.IsReceived = true;
+        p.Status = "Received";
+        await _context.SaveChangesAsync();
+        return Ok(new { success = true, status = p.Status });
     }
 }

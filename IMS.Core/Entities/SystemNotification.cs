@@ -12,5 +12,6 @@ public class SystemNotification
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public int? InvestorId { get; set; }
     public Investor? InvestorNav { get; set; }
+    public string? TargetInvestorIds { get; set; }
     public string Status { get; set; } = "Active";
 }
