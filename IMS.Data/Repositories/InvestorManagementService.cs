@@ -179,7 +179,7 @@ public class InvestorManagementService : IInvestorManagementService
             DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
             MinRoiRangeId = dto.min_RoiRangeId ?? 1,
             MaxRoiRangeId = dto.max_RoiRangeId ?? 2,
-            RoiTypeId = dto.roiTypeId,
+            RoiTypeId = dto.roiTypeId ?? 3,
             BankName = dto.bank,
             BankAccountNo = dto.acNumber,
             SortCode = dto.soreCode
@@ -231,7 +231,7 @@ public class InvestorManagementService : IInvestorManagementService
         investor.DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow;
         investor.MinRoiRangeId = dto.min_roi_id;
         investor.MaxRoiRangeId = dto.max_roi_id;
-        investor.RoiTypeId = dto.roiTypeId;
+        investor.RoiTypeId = dto.roiTypeId ?? 3;
         investor.BankName = dto.bank;
         investor.BankAccountNo = dto.acNumber;
         investor.SortCode = dto.sortCode;
