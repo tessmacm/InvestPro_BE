@@ -398,10 +398,17 @@ namespace IMS.API.Controllers
             var expiry = DateTime.UtcNow.AddMinutes(10);
             _loginOtps[model.Email.ToLowerInvariant()] = (otp, expiry);
 
-            await _emailService.SendEmailAsync(
-                user.Email!,
-                "Login Verification Code",
-                $"Your login verification code is: {otp}. This code will expire in 10 minutes.");
+            try
+            {
+                await _emailService.SendEmailAsync(
+                    user.Email!,
+                    "Login Verification Code",
+                    $"Your InvestPro login verification code is: <strong>{otp}</strong><br/>This code will expire in 10 minutes.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EmailService] Failed to send OTP email to {user.Email}: {ex.Message}");
+            }
 
             return Ok(new { Message = "OTP sent successfully" });
         }
@@ -504,10 +511,17 @@ namespace IMS.API.Controllers
             var expiry = DateTime.UtcNow.AddMinutes(10);
             _pendingRegistrations[model.Email.ToLowerInvariant()] = (otp, expiry, model.FirstName, model.LastName);
 
-            await _emailService.SendEmailAsync(
-                model.Email,
-                "Registration Verification Code",
-                $"Your registration verification code is: {otp}. This code will expire in 10 minutes.");
+            try
+            {
+                await _emailService.SendEmailAsync(
+                    model.Email,
+                    "Registration Verification Code",
+                    $"Your registration verification code is: <strong>{otp}</strong><br/>This code will expire in 10 minutes.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EmailService] Failed to send registration OTP to {model.Email}: {ex.Message}");
+            }
 
             return Ok(new { Message = "OTP sent successfully" });
         }
