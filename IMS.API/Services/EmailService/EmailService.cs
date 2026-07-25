@@ -1,4 +1,4 @@
-﻿using MailKit.Net.Smtp;
+using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -16,29 +16,28 @@ public class EmailService : IEmailService
 
     public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
-        // Implement email sending logic using _settings for SMTP configuration
-
-        var email = new MimeMessage();
-
-        email.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
-
-        email.To.Add(MailboxAddress.Parse(toEmail));
-        email.Subject = subject;
-
-        email.Body = new TextPart("html")
+        try
         {
-            Text = body
-        };
+            var email = new MimeMessage();
+            email.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
+            email.To.Add(MailboxAddress.Parse(toEmail));
+            email.Subject = subject;
+            email.Body = new TextPart("html") { Text = body };
 
-        using var smtp = new SmtpClient();
+            using var smtp = new SmtpClient();
+            // Connect with 10s timeout
+            smtp.Timeout = 10000;
+            await smtp.ConnectAsync(_settings.SmtpServer, _settings.Port, SecureSocketOptions.StartTls);
+            await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
+            await smtp.SendAsync(email);
+            await smtp.DisconnectAsync(true);
 
-        await smtp.ConnectAsync(_settings.SmtpServer, _settings.Port, SecureSocketOptions.StartTls);
-
-        await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
-
-        await smtp.SendAsync(email);
-
-        await smtp.DisconnectAsync(true);
-
+            Console.WriteLine($"[EmailService SUCCESS] OTP email dispatched to {toEmail} via {_settings.SmtpServer}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[EmailService ERROR] Failed sending email to {toEmail} via {_settings.SmtpServer}:{_settings.Port}. Reason: {ex.GetType().Name} - {ex.Message}");
+            throw; // Propagate so caller knows SMTP failed
+        }
     }
 }

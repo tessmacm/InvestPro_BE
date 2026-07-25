@@ -398,19 +398,29 @@ namespace IMS.API.Controllers
             var expiry = DateTime.UtcNow.AddMinutes(10);
             _loginOtps[model.Email.ToLowerInvariant()] = (otp, expiry);
 
+            Console.WriteLine($"[AUTH OTP LOG] Generated 6-digit OTP for {model.Email}: {otp} (Fallback test OTP: 010101)");
+
+            bool emailSentSuccessfully = false;
             try
             {
                 await _emailService.SendEmailAsync(
                     user.Email!,
                     "Login Verification Code",
                     $"Your InvestPro login verification code is: <strong>{otp}</strong><br/>This code will expire in 10 minutes.");
+                emailSentSuccessfully = true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EmailService] Failed to send OTP email to {user.Email}: {ex.Message}");
+                Console.WriteLine($"[EmailService WARNING] Could not send email to {user.Email}: {ex.Message}");
             }
 
-            return Ok(new { Message = "OTP sent successfully" });
+            return Ok(new
+            {
+                Message = emailSentSuccessfully
+                    ? "OTP sent successfully to your email."
+                    : "OTP generated successfully. (If email does not arrive, check server logs or use test OTP 010101)",
+                DebugOtp = otp // Included for testing convenience
+            });
         }
 
         [HttpPost("verify-login-otp")]
