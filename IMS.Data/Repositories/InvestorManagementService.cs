@@ -136,32 +136,62 @@ public class InvestorManagementService : IInvestorManagementService
 
     public async Task<InvestorRegistrationResponse> RegisterAndCreateInvestorAsync(RegisterInvestorDTO dto)
     {
-        // Step 1: Initialize Identity User First
         var names = (dto.name ?? "").Split(' ');
         var firstName = names.FirstOrDefault() ?? "Investor";
         var lastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "User";
 
-        var identityUser = new ApplicationUser
-        {
-            UserName = dto.email,
-            Email = dto.email,
-            FirstName = firstName,
-            LastName = lastName,
-            PhoneNumber = dto.mobile,
-            IsActive = dto.status != "inactive",
-            EmailConfirmed = true
-        };
+        // Step 1: Check if user or investor already exists
+        ApplicationUser identityUser;
+        var existingUser = await _userManager.FindByEmailAsync(dto.email!);
 
-        var pwd = string.IsNullOrEmpty(dto.password) ? "Password123!" : dto.password;
-        var identityResult = await _userManager.CreateAsync(identityUser, pwd);
-
-        if (!identityResult.Succeeded)
+        if (existingUser != null)
         {
-            var error = identityResult.Errors.FirstOrDefault()?.Description ?? "Identity Creation failed";
-            return new InvestorRegistrationResponse { IsSuccess = false, ErrorMessage = error };
+            // Check if user already has an active Investor entity profile linked
+            var existingInvestor = await _context.Investors
+                .FirstOrDefaultAsync(i => i.OwnerUserId == existingUser.Id || (existingUser.InvestorId != null && i.InvestorId == existingUser.InvestorId));
+
+            if (existingInvestor != null)
+            {
+                return new InvestorRegistrationResponse
+                {
+                    IsSuccess = false,
+                    ErrorMessage = $"An investor profile for email '{dto.email}' already exists in the system."
+                };
+            }
+
+            // Existing user in AspNetUsers has no Investor entity profile -> Re-use existing user account
+            identityUser = existingUser;
+            identityUser.FirstName = firstName;
+            identityUser.LastName = lastName;
+            identityUser.PhoneNumber = string.IsNullOrEmpty(dto.mobile) ? identityUser.PhoneNumber : dto.mobile;
+            identityUser.IsActive = dto.status != "inactive";
+            await _userManager.UpdateAsync(identityUser);
         }
+        else
+        {
+            // Create brand new Identity user
+            identityUser = new ApplicationUser
+            {
+                UserName = dto.email,
+                Email = dto.email,
+                FirstName = firstName,
+                LastName = lastName,
+                PhoneNumber = dto.mobile,
+                IsActive = dto.status != "inactive",
+                EmailConfirmed = true
+            };
 
-        await _userManager.AddToRoleAsync(identityUser, "investor");
+            var pwd = string.IsNullOrEmpty(dto.password) ? "Password123!" : dto.password;
+            var identityResult = await _userManager.CreateAsync(identityUser, pwd);
+
+            if (!identityResult.Succeeded)
+            {
+                var error = identityResult.Errors.FirstOrDefault()?.Description ?? "Identity Creation failed";
+                return new InvestorRegistrationResponse { IsSuccess = false, ErrorMessage = error };
+            }
+
+            await _userManager.AddToRoleAsync(identityUser, "investor");
+        }
 
         // Step 2: Create Investor entity
         var newInvestor = new Investor
@@ -169,13 +199,12 @@ public class InvestorManagementService : IInvestorManagementService
             OwnerUserId = identityUser.Id,
             DateOfBirth = DateTime.UtcNow.AddYears(-18),
             TaxIdOrSSN = "-",
-            LegalBusinessName = dto.organization ?? "—",
-            CompanyRegistrationNo = dto.reg_number ?? "—",
-            AuthorizedSignerName = dto.accreditation ?? "Accredited",
-            CapitalAmount = dto.amount,
-            Notes = "Basic Investor Registraion",
-            InvestorTypeId = dto.type,
-            //InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1,
+            LegalBusinessName = string.IsNullOrEmpty(dto.organization) ? "—" : dto.organization,
+            CompanyRegistrationNo = string.IsNullOrEmpty(dto.reg_number) ? "—" : dto.reg_number,
+            AuthorizedSignerName = string.IsNullOrEmpty(dto.accreditation) ? "Accredited" : dto.accreditation,
+            CapitalAmount = dto.amount ?? 0,
+            Notes = string.IsNullOrEmpty(dto.notes) ? "Investor Registration" : dto.notes,
+            InvestorTypeId = dto.type.HasValue && dto.type.Value > 0 ? dto.type.Value : 1,
             DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
             MinRoiRangeId = dto.min_RoiRangeId ?? 1,
             MaxRoiRangeId = dto.max_RoiRangeId ?? 2,
@@ -193,7 +222,7 @@ public class InvestorManagementService : IInvestorManagementService
         await GeneratePaymentsForInvestorAsync(newInvestor);
         await _unitOfWork.CompleteAsync();
 
-        // Step 3b: Auto-attach Investment Agreement document template
+        // Step 3b: Auto-attach Investment Agreement document template if not existing
         var agreementDoc = new InvestorDocument
         {
             InvestorId = newInvestor.InvestorId ?? 0,
