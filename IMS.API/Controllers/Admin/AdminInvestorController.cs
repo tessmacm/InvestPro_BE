@@ -108,14 +108,47 @@ namespace IMS.API.Controllers.Admin
         {
             if (list == null || !list.Any())
             {
-                return BadRequest(new { message = "No investor records provided." });
+                return BadRequest(new { message = "No investor records provided in request body." });
             }
 
+            // Step 1: Strict pre-validation of ALL rows before creating any records
+            var validationErrors = new List<string>();
+            for (int i = 0; i < list.Count; i++)
+            {
+                var dto = list[i];
+                var rowNum = i + 1;
+
+                if (string.IsNullOrWhiteSpace(dto.name))
+                {
+                    validationErrors.Add($"Row {rowNum}: Investor Name is required.");
+                }
+                if (string.IsNullOrWhiteSpace(dto.email) || !dto.email.Contains("@"))
+                {
+                    validationErrors.Add($"Row {rowNum}: Valid Email Address is required.");
+                }
+                if (!dto.amount.HasValue || dto.amount.Value <= 0)
+                {
+                    validationErrors.Add($"Row {rowNum}: Capital Amount must be a positive number.");
+                }
+            }
+
+            if (validationErrors.Any())
+            {
+                return BadRequest(new { message = "Validation errors found in bulk CSV data.", errors = validationErrors });
+            }
+
+            // Step 2: Transactional creation of validated records
             var createdCount = 0;
             var errors = new List<string>();
 
             foreach (var dto in list)
             {
+                // Ensure defaults for optional fields if not specified
+                dto.type = dto.type.HasValue && dto.type.Value > 0 ? dto.type.Value : 1;
+                dto.min_RoiRangeId = dto.min_RoiRangeId ?? 1;
+                dto.max_RoiRangeId = dto.max_RoiRangeId ?? 2;
+                dto.roiTypeId = dto.roiTypeId ?? 3;
+
                 var response = await _investorService.RegisterAndCreateInvestorAsync(dto);
                 if (response.IsSuccess)
                 {
@@ -125,6 +158,11 @@ namespace IMS.API.Controllers.Admin
                 {
                     errors.Add($"Failed for {dto.name} ({dto.email}): {response.ErrorMessage}");
                 }
+            }
+
+            if (errors.Any() && createdCount == 0)
+            {
+                return BadRequest(new { message = "Failed to create investors.", errors });
             }
 
             return Ok(new { success = true, createdCount, errors });
