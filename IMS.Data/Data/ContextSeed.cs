@@ -11,77 +11,77 @@ public class ContextSeed
 {
     public static async Task SeedRolesAndAdminAdync(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, ApplicationDbContext? context = null)
     {
-        #region Creating Roles
         // 1. Seed Roles into AspNetRoles table
-        //string[] roleNames = new string[] { "SuperAdmin","Admin", "Investor" };
-
-        //var roles = 
-        //foreach (var roleName in roleNames)
-        //{
-        //    if (!await roleManager.RoleExistsAsync(roleName))
-        //    {
-        //        await roleManager.CreateAsync(new IdentityRole(roleName));
-        //    }
-        //}
-        #endregion
-
-        // 2. Ensure admin@investpro.com is removed if present and ensure first user has admin role
-        var legacyAdmin = await userManager.FindByEmailAsync("admin@investpro.com");
-        if (legacyAdmin != null)
+        string[] roleNames = new string[] { "admin", "manager", "investor", "client" };
+        foreach (var roleName in roleNames)
         {
-            await userManager.DeleteAsync(legacyAdmin);
-        }
-
-        // Auto-assign admin role to the first user if no admin exists
-        var allUsersList = userManager.Users.ToList();
-        var hasAdmin = false;
-        foreach (var u in allUsersList)
-        {
-            var r = await userManager.GetRolesAsync(u);
-            if (r.Contains("admin") || r.Contains("Admin") || r.Contains("superadmin") || r.Contains("SuperAdmin"))
+            if (!await roleManager.RoleExistsAsync(roleName))
             {
-                hasAdmin = true;
-                break;
+                await roleManager.CreateAsync(new IdentityRole(roleName));
             }
         }
 
-        if (!hasAdmin && allUsersList.Any())
+        // 2. Ensure tessma.cm@gmail.com exists as Admin
+        var adminUser = await userManager.FindByEmailAsync("tessma.cm@gmail.com");
+        if (adminUser == null)
         {
-            var firstUser = allUsersList.First();
-            await userManager.AddToRoleAsync(firstUser, "admin");
+            adminUser = new ApplicationUser
+            {
+                UserName = "tessma.cm@gmail.com",
+                Email = "tessma.cm@gmail.com",
+                FirstName = "Tessma",
+                LastName = "Admin",
+                EmailConfirmed = true,
+                IsActive = true
+            };
+            await userManager.CreateAsync(adminUser, "Password123!");
+            await userManager.AddToRoleAsync(adminUser, "admin");
+        }
+        else
+        {
+            if (!await userManager.IsInRoleAsync(adminUser, "admin"))
+            {
+                await userManager.AddToRoleAsync(adminUser, "admin");
+            }
         }
 
-        // 3. WIPE ALL OPERATIONAL DATA EXCEPT USER ACCOUNTS (COMPLETED AS REQUESTED BY USER)
+        // 3. Ensure imsmanager@yopmail.com exists as Manager
+        var managerUser = await userManager.FindByEmailAsync("imsmanager@yopmail.com");
+        if (managerUser == null)
+        {
+            managerUser = new ApplicationUser
+            {
+                UserName = "imsmanager@yopmail.com",
+                Email = "imsmanager@yopmail.com",
+                FirstName = "IMS",
+                LastName = "Manager",
+                EmailConfirmed = true,
+                IsActive = true
+            };
+            await userManager.CreateAsync(managerUser, "Password123!");
+            await userManager.AddToRoleAsync(managerUser, "manager");
+        }
+        else
+        {
+            if (!await userManager.IsInRoleAsync(managerUser, "manager"))
+            {
+                await userManager.AddToRoleAsync(managerUser, "manager");
+            }
+        }
+
+        // 4. Purge ALL OTHER users except tessma.cm@gmail.com and imsmanager@yopmail.com
+        var otherUsers = userManager.Users
+            .Where(u => u.Email != "tessma.cm@gmail.com" && u.Email != "imsmanager@yopmail.com")
+            .ToList();
+
+        foreach (var u in otherUsers)
+        {
+            await userManager.DeleteAsync(u);
+        }
+
+        // 5. Ensure default project "Current Operations" exists
         if (context != null)
         {
-            /*
-            try
-            {
-                var usersWithInvestor = context.Users.Where(u => u.InvestorId != null).ToList();
-                foreach (var u in usersWithInvestor)
-                {
-                    u.InvestorId = null;
-                }
-                await context.SaveChangesAsync();
-
-                context.InvestorDocuments.RemoveRange(context.InvestorDocuments);
-                context.Payments.RemoveRange(context.Payments);
-                context.InvestorCommitments.RemoveRange(context.InvestorCommitments);
-                context.SystemNotifications.RemoveRange(context.SystemNotifications);
-                context.SystemReports.RemoveRange(context.SystemReports);
-                context.RoiContracts.RemoveRange(context.RoiContracts);
-                context.Investors.RemoveRange(context.Investors);
-                context.Projects.RemoveRange(context.Projects);
-
-                await context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error during operational data purge: {ex.Message}");
-            }
-            */
-
-            // Ensure default project "Current Operations" exists
             var currentOps = context.Projects.FirstOrDefault(p => p.Title == "Current Operations");
             if (currentOps == null)
             {

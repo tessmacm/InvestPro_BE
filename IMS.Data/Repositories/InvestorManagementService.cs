@@ -40,7 +40,21 @@ public class InvestorManagementService : IInvestorManagementService
 
         if (investor == null) return false;
 
-        // Delete commitments and documents first to prevent FK constraint issues
+        // 1. Delete payments linked to investor
+        var payments = await _context.Payments.Where(p => p.InvestorId == profileId).ToListAsync();
+        if (payments.Any())
+        {
+            _context.Payments.RemoveRange(payments);
+        }
+
+        // 2. Delete ROI contracts linked to investor
+        var roiContracts = await _context.RoiContracts.Where(r => r.InvestorId == profileId).ToListAsync();
+        if (roiContracts.Any())
+        {
+            _context.RoiContracts.RemoveRange(roiContracts);
+        }
+
+        // 3. Delete commitments and documents
         if (investor.Commitments != null && investor.Commitments.Any())
         {
             _context.InvestorCommitments.RemoveRange(investor.Commitments);
@@ -55,6 +69,7 @@ public class InvestorManagementService : IInvestorManagementService
         _context.Investors.Remove(investor);
         await _unitOfWork.CompleteAsync();
 
+        // 4. Completely remove associated ApplicationUser from AspNetUsers
         if (!string.IsNullOrEmpty(userId))
         {
             var userAccount = await _userManager.FindByIdAsync(userId);
