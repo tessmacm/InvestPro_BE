@@ -193,6 +193,21 @@ public class InvestorManagementService : IInvestorManagementService
         await GeneratePaymentsForInvestorAsync(newInvestor);
         await _unitOfWork.CompleteAsync();
 
+        // Step 3b: Auto-attach Investment Agreement document template
+        var agreementDoc = new InvestorDocument
+        {
+            InvestorId = newInvestor.InvestorId ?? 0,
+            Title = $"Investment Agreement - {identityUser.FirstName} {identityUser.LastName} (Current Operations).pdf",
+            DocumentType = "Agreement",
+            Size = 1.2m,
+            StorageUrl = $"/documents/agreement_{newInvestor.InvestorId}.pdf",
+            UploadedAt = DateTime.UtcNow,
+            UploadedById = identityUser.Id,
+            Status = "Pending Signature"
+        };
+        await _context.InvestorDocuments.AddAsync(agreementDoc);
+        await _unitOfWork.CompleteAsync();
+
         // Step 3: Backward link the InvestorId reference
         identityUser.InvestorId = newInvestor.InvestorId;
         await _userManager.UpdateAsync(identityUser);

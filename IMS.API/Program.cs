@@ -191,6 +191,42 @@ using (var scope = app.Services.CreateScope())
                 INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion]) 
                 VALUES ('20260703061105_ModifyInvestorRRRT', '9.0.0')
             END
+
+            IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'InvestorTypes')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'InvestorTypes' AND COLUMN_NAME = 'Status')
+                BEGIN
+                    ALTER TABLE InvestorTypes ADD Status NVARCHAR(50) NOT NULL DEFAULT 'active';
+                END
+            END
+
+            IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'RoiRanges')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RoiRanges' AND COLUMN_NAME = 'Status')
+                BEGIN
+                    ALTER TABLE RoiRanges ADD Status NVARCHAR(50) NOT NULL DEFAULT 'active';
+                END
+            END
+
+            IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'RoiTypes')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RoiTypes' AND COLUMN_NAME = 'Status')
+                BEGIN
+                    ALTER TABLE RoiTypes ADD Status NVARCHAR(50) NOT NULL DEFAULT 'active';
+                END
+            END
+
+            IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'InvestorDocuments')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'InvestorDocuments' AND COLUMN_NAME = 'SignatureData')
+                BEGIN
+                    ALTER TABLE InvestorDocuments ADD SignatureData NVARCHAR(MAX) NULL;
+                END
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'InvestorDocuments' AND COLUMN_NAME = 'SignedAt')
+                BEGIN
+                    ALTER TABLE InvestorDocuments ADD SignedAt DATETIME2 NULL;
+                END
+            END
         ");
 
         // Apply new pending migrations
@@ -199,8 +235,8 @@ using (var scope = app.Services.CreateScope())
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
 
-        // Seed Roles and Admin User
-        await ContextSeed.SeedRolesAndAdminAdync(userManager, roleManager);
+        // Seed Roles, Admin User, and Current Operations project
+        await ContextSeed.SeedRolesAndAdminAdync(userManager, roleManager, context);
     }
     catch (Exception ex)
     {

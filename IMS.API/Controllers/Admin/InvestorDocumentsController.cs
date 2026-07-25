@@ -28,11 +28,14 @@ namespace IMS.API.Controllers.Admin
         [HttpGet]
         public async Task<IActionResult> GetAllInvestorDocs()
         {
-            if (User.IsInRole("investor"))
+            var isInvestor = User.IsInRole("investor") || User.IsInRole("Investor") || User.IsInRole("client") || User.IsInRole("Client");
+            if (isInvestor && !User.IsInRole("admin") && !User.IsInRole("Admin") && !User.IsInRole("manager") && !User.IsInRole("Manager"))
             {
                 var user = await _userManager.GetUserAsync(User);
+                var userId = user?.Id ?? User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var email = user?.Email ?? User.FindFirstValue("name") ?? User.FindFirstValue(ClaimTypes.Email);
                 var investorId = user?.InvestorId ?? 0;
-                var investDocs = await _documentService.GetInvestorDocsByInvestorIdAsync(investorId);
+                var investDocs = await _documentService.GetInvestorDocsByInvestorIdAsync(investorId, userId, email);
                 return Ok(investDocs);
             }
             else
@@ -117,5 +120,58 @@ namespace IMS.API.Controllers.Admin
             }
             return NotFound(new { message = "Document not found." });
         }
+
+        [HttpPost("{id}/sign")]
+        public async Task<IActionResult> SignInvestorDoc(int id, [FromBody] SignDocumentDTO dto)
+        {
+            var doc = await _documentService.GetInvestorDocByIdAsync(id);
+            if (doc == null)
+            {
+                return NotFound(new { message = "Document not found." });
+            }
+
+            var isInvestor = User.IsInRole("investor") || User.IsInRole("Investor") || User.IsInRole("client") || User.IsInRole("Client");
+            if (isInvestor && !User.IsInRole("admin") && !User.IsInRole("Admin"))
+            {
+                var user = await _userManager.GetUserAsync(User);
+                var userId = user?.Id ?? User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var email = user?.Email ?? User.FindFirstValue("name") ?? User.FindFirstValue(ClaimTypes.Email);
+                var investorId = user?.InvestorId ?? 0;
+                if (investorId == 0)
+                {
+                    investorId = await _documentService.GetInvestorIdByUserIdOrEmailAsync(userId, email);
+                }
+
+                if (doc.InvestorId != investorId)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, "Cannot sign document of another investor.");
+                }
+            }
+
+            var sigData = dto?.signatureData ?? dto?.signatureName ?? "Digital Signature";
+            var success = await _documentService.UpdateDocumentSignatureAsync(id, sigData);
+            if (success)
+            {
+                return Ok(new { success = true, message = "Document digitally signed successfully." });
+            }
+            return BadRequest(new { message = "Could not sign document." });
+        }
+
+        [HttpPost("{id}/reset")]
+        public async Task<IActionResult> ResetInvestorDoc(int id)
+        {
+            var success = await _documentService.ResetDocumentSignatureAsync(id);
+            if (success)
+            {
+                return Ok(new { success = true, message = "Document signature reset to Pending Signature." });
+            }
+            return BadRequest(new { message = "Could not reset document." });
+        }
+    }
+
+    public class SignDocumentDTO
+    {
+        public string? signatureName { get; set; }
+        public string? signatureData { get; set; }
     }
 }

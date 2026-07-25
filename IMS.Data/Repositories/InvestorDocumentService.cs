@@ -39,19 +39,49 @@ public class InvestorDocumentService : IInvestorDocumentService
             list.Add(new InvestorDocumentDTO
             {
                 id = d.Id,
+                investor_id = d.InvestorId,
                 title = d.Title ?? string.Empty,
                 type = d.DocumentType ?? "PDF",
                 size = d.Size.HasValue ? $"{d.Size:F1} MB" : "0.2 MB",
                 url = d.StorageUrl ?? "#",
                 uploaded_by = userName,
-                created_at = d.UploadedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") ?? DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                created_at = d.UploadedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") ?? DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                status = d.Status ?? "PendingReview",
+                signature = d.SignatureData,
+                signed_at = d.SignedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
             });
         }
         return list;
     }
 
-    public async Task<IEnumerable<InvestorDocumentDTO>> GetInvestorDocsByInvestorIdAsync(int investorId)
+    public async Task<int> GetInvestorIdByUserIdOrEmailAsync(string? userId, string? email)
     {
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var inv = await _context.Investors.FirstOrDefaultAsync(i => i.OwnerUserId == userId);
+            if (inv != null && inv.InvestorId.HasValue) return inv.InvestorId.Value;
+        }
+
+        if (!string.IsNullOrEmpty(email))
+        {
+            var userAcc = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (userAcc != null)
+            {
+                var inv = await _context.Investors.FirstOrDefaultAsync(i => i.OwnerUserId == userAcc.Id);
+                if (inv != null && inv.InvestorId.HasValue) return inv.InvestorId.Value;
+            }
+        }
+
+        return 0;
+    }
+
+    public async Task<IEnumerable<InvestorDocumentDTO>> GetInvestorDocsByInvestorIdAsync(int investorId, string? userId = null, string? email = null)
+    {
+        if (investorId == 0)
+        {
+            investorId = await GetInvestorIdByUserIdOrEmailAsync(userId, email);
+        }
+
         var docs = await _context.InvestorDocuments
             .Where(d => d.InvestorId == investorId)
             .OrderByDescending(d => d.UploadedAt)
@@ -67,15 +97,24 @@ public class InvestorDocumentService : IInvestorDocumentService
             list.Add(new InvestorDocumentDTO
             {
                 id = d.Id,
+                investor_id = d.InvestorId,
                 title = d.Title ?? string.Empty,
                 type = d.DocumentType ?? "PDF",
                 size = d.Size.HasValue ? $"{d.Size:F1} MB" : "0.2 MB",
                 url = d.StorageUrl ?? "#",
                 uploaded_by = userName,
-                created_at = d.UploadedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") ?? DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                created_at = d.UploadedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") ?? DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                status = d.Status ?? "PendingReview",
+                signature = d.SignatureData,
+                signed_at = d.SignedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
             });
         }
         return list;
+    }
+
+    public async Task<InvestorDocument?> GetInvestorDocByIdAsync(int id)
+    {
+        return await _context.InvestorDocuments.FindAsync(id);
     }
 
     public async Task<bool> UploadDocumentMetadataAsync(int investorId, UploadDocumentDTO dto)
@@ -119,6 +158,37 @@ public class InvestorDocumentService : IInvestorDocumentService
 
         document.Status = status;
         return await _unitOfWork.CompleteAsync() >= 0;
+    }
+
+    public async Task<bool> UpdateDocumentStatusAsync(int id, string status)
+    {
+        var document = await _context.InvestorDocuments.FindAsync(id);
+        if (document == null) return false;
+
+        document.Status = status;
+        return await _unitOfWork.CompleteAsync() > 0;
+    }
+
+    public async Task<bool> UpdateDocumentSignatureAsync(int id, string signature)
+    {
+        var document = await _context.InvestorDocuments.FindAsync(id);
+        if (document == null) return false;
+
+        document.Status = "Signed";
+        document.SignatureData = signature;
+        document.SignedAt = DateTime.UtcNow;
+        return await _unitOfWork.CompleteAsync() > 0;
+    }
+
+    public async Task<bool> ResetDocumentSignatureAsync(int id)
+    {
+        var document = await _context.InvestorDocuments.FindAsync(id);
+        if (document == null) return false;
+
+        document.Status = "Pending Signature";
+        document.SignatureData = null;
+        document.SignedAt = null;
+        return await _unitOfWork.CompleteAsync() > 0;
     }
 
     public async Task<bool> DeleteDocumentAsync(int id)

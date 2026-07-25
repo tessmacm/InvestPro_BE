@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -19,5 +19,7 @@ public class InvestorDocument
     public string? StorageUrl { get; set; } 
     public DateTime? UploadedAt { get; set; } 
     public string? UploadedById { get; set; }
-    public string? Status { get; set; } = "PendingReview"; // PendingReview, Approved, Rejected
+    public string? Status { get; set; } = "PendingReview"; // PendingReview, Approved, Rejected, Pending Signature, Signed
+    public string? SignatureData { get; set; }
+    public DateTime? SignedAt { get; set; }
 }
