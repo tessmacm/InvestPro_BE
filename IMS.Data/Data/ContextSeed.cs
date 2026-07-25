@@ -25,32 +25,30 @@ public class ContextSeed
         //}
         #endregion
 
-        // 2. Seed Admin User into AspNetUsers table
-        var defaultAdminEmail = "admin@investpro.com";
-        var defaultAdmin = await userManager.FindByEmailAsync(defaultAdminEmail);
-
-        if (defaultAdmin == null)
+        // 2. Ensure admin@investpro.com is removed if present and ensure first user has admin role
+        var legacyAdmin = await userManager.FindByEmailAsync("admin@investpro.com");
+        if (legacyAdmin != null)
         {
-            var saUser = new ApplicationUser()
+            await userManager.DeleteAsync(legacyAdmin);
+        }
+
+        // Auto-assign admin role to the first user if no admin exists
+        var allUsersList = userManager.Users.ToList();
+        var hasAdmin = false;
+        foreach (var u in allUsersList)
+        {
+            var r = await userManager.GetRolesAsync(u);
+            if (r.Contains("admin") || r.Contains("Admin") || r.Contains("superadmin") || r.Contains("SuperAdmin"))
             {
-                UserName = defaultAdminEmail,
-                Email = defaultAdminEmail,
-                EmailConfirmed = true,
-                IsActive = true,
-                FirstName = "Admin",
-                LastName = "User"
-            };
-            var result = await userManager.CreateAsync(saUser, "Admin@123");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(saUser, "admin");
+                hasAdmin = true;
+                break;
             }
         }
-        else
+
+        if (!hasAdmin && allUsersList.Any())
         {
-            defaultAdmin.EmailConfirmed = true;
-            defaultAdmin.IsActive = true;
-            await userManager.UpdateAsync(defaultAdmin);
+            var firstUser = allUsersList.First();
+            await userManager.AddToRoleAsync(firstUser, "admin");
         }
 
         // 3. Ensure only one project "Current Operations" exists in the database

@@ -26,7 +26,7 @@ public class AdminManagementService : IAdminManagementService
         var query = from user in _context.Users
                     join userRole in _context.UserRoles on user.Id equals userRole.UserId
                     join role in _context.Roles on userRole.RoleId equals role.Id
-                    where role.Name == "admin" || role.Name == "superadmin" || role.Name == "manager" || role.Name == "client" || role.Name == "investor"
+                    where user.Email != "admin@investpro.com" && (role.Name == "admin" || role.Name == "superadmin" || role.Name == "manager" || role.Name == "client" || role.Name == "investor")
                     select new AdminUserSummaryDTO
                     {
                         Id = user.Id,

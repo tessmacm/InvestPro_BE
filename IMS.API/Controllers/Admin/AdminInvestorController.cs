@@ -102,5 +102,32 @@ namespace IMS.API.Controllers.Admin
                 return NotFound(new { Message = "Admin user not found." });
         }
 
+        // POST: api/admin/investors/bulk-import
+        [HttpPost("bulk-import")]
+        public async Task<IActionResult> BulkImportInvestors([FromBody] List<RegisterInvestorDTO> list)
+        {
+            if (list == null || !list.Any())
+            {
+                return BadRequest(new { message = "No investor records provided." });
+            }
+
+            var createdCount = 0;
+            var errors = new List<string>();
+
+            foreach (var dto in list)
+            {
+                var response = await _investorService.RegisterAndCreateInvestorAsync(dto);
+                if (response.IsSuccess)
+                {
+                    createdCount++;
+                }
+                else
+                {
+                    errors.Add($"Failed for {dto.name} ({dto.email}): {response.ErrorMessage}");
+                }
+            }
+
+            return Ok(new { success = true, createdCount, errors });
+        }
     }
 }
