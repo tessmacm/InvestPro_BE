@@ -37,13 +37,13 @@ namespace IMS.API.Controllers.Admin
             {
                 var user = await _userManager.GetUserAsync(User);
                 var investorId = user?.InvestorId ?? 0;
-                projects = await _context.Projects
-                    .Where(p => _context.InvestorCommitments.Any(c => c.InvestorId == investorId && c.ProjectId == p.Id))
+                projects = await _context.Projects.AsNoTracking()
+                    .Where(p => _context.InvestorCommitments.AsNoTracking().Any(c => c.InvestorId == investorId && c.ProjectId == p.Id))
                     .ToListAsync();
             }
             else
             {
-                projects = await _context.Projects.ToListAsync();
+                projects = await _context.Projects.AsNoTracking().ToListAsync();
             }
 
             var mapped = new List<object>();

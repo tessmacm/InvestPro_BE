@@ -25,7 +25,7 @@ public class PaymentsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? investorId)
     {
-        var query = _context.Payments.Include(p => p.InvestorNav).AsQueryable();
+        var query = _context.Payments.AsNoTracking().Include(p => p.InvestorNav).AsQueryable();
 
         if (User.IsInRole("investor") || User.IsInRole("Investor"))
         {

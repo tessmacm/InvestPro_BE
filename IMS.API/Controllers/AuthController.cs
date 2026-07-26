@@ -227,7 +227,7 @@ namespace IMS.API.Controllers
                             audience: null, // Not validating audience
                             signingCredentials: signCred,
                             claims: claims,
-                            expires: DateTime.Now.AddMinutes(30));
+                            expires: DateTime.UtcNow.AddDays(7));
 
                         //Step 5: Finally write the token as response with OK() using the new required shape.
                         var tokenString = new JwtSecurityTokenHandler().WriteToken(jwt);
@@ -483,7 +483,7 @@ namespace IMS.API.Controllers
                 audience: null,
                 signingCredentials: signCred,
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(30));
+                expires: DateTime.UtcNow.AddDays(7));
 
             var tokenString = new JwtSecurityTokenHandler().WriteToken(jwt);
             var fullName = $"{user.FirstName} {user.LastName}".Trim();
@@ -618,7 +618,7 @@ namespace IMS.API.Controllers
                 audience: null,
                 signingCredentials: signCred,
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(30));
+                expires: DateTime.UtcNow.AddDays(7));
 
             var tokenString = new JwtSecurityTokenHandler().WriteToken(jwt);
             var fullName = $"{newUser.FirstName} {newUser.LastName}".Trim();

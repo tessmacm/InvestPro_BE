@@ -30,6 +30,12 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = null;
     });
 
+builder.Services.AddMemoryCache();
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
 // Register Authentication with JWT Bearer scheme
 builder.Services.AddAuthentication(options =>
 {
@@ -56,6 +62,8 @@ builder.Services.AddAuthentication(options =>
             ValidateIssuerSigningKey = true,
 
             RoleClaimType = "role",
+
+            ClockSkew = TimeSpan.FromMinutes(5),
 
             // The key used to sign tokens — must match the key used to generate tokens
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)) // Use a symmetric key from configuration for token validation.
@@ -145,6 +153,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseResponseCompression();
 
 app.UseCors(x => x.AllowAnyOrigin()
                   .AllowAnyMethod()

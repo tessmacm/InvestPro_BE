@@ -84,8 +84,8 @@ public class InvestorManagementService : IInvestorManagementService
 
     public async Task<IEnumerable<InvestorSummaryDTO>> GetAllInvestorsAsync()
     {
-        var query = from inv in _context.Investors
-                    join user in _context.Users on inv.OwnerUserId equals user.Id into userGroup
+        var query = from inv in _context.Investors.AsNoTracking()
+                    join user in _context.Users.AsNoTracking() on inv.OwnerUserId equals user.Id into userGroup
                     from user in userGroup.DefaultIfEmpty()
                     select new
                     {
