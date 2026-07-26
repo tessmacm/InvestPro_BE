@@ -221,12 +221,12 @@ public class InvestorManagementService : IInvestorManagementService
             Notes = string.IsNullOrEmpty(dto.notes) ? "Investor Registration" : dto.notes,
             InvestorTypeId = Math.Clamp(dto.type ?? 1, 1, 2),
             DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
-            MinRoiRangeId = Math.Clamp(dto.min_RoiRangeId ?? 1, 1, 4),
-            MaxRoiRangeId = Math.Clamp(dto.max_RoiRangeId ?? 4, 1, 4),
+            MinRoiRangeId = Math.Clamp(dto.min_RoiRangeId ?? dto.min_roi_id ?? 1, 1, 4),
+            MaxRoiRangeId = Math.Clamp(dto.max_RoiRangeId ?? dto.max_roi_id ?? 4, 1, 4),
             RoiTypeId = Math.Clamp(dto.roiTypeId ?? 3, 1, 5),
             BankName = dto.bank,
             BankAccountNo = dto.acNumber,
-            SortCode = dto.soreCode
+            SortCode = !string.IsNullOrEmpty(dto.sortCode) ? dto.sortCode : dto.soreCode
         };
 
         // Save via Unit of Work

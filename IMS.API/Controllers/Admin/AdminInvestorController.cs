@@ -54,21 +54,36 @@ namespace IMS.API.Controllers.Admin
         [HttpPost("create")]
         public async Task<IActionResult> AdminCreateInvestorProfile([FromBody] RegisterInvestorDTO regCreateDto)
         {
+            if (regCreateDto == null)
+            {
+                return BadRequest(new { Message = "Investor creation payload is required." });
+            }
+
             var response = await _investorService.RegisterAndCreateInvestorAsync(regCreateDto);
 
             if (!response.IsSuccess)
             {
-                return BadRequest(new { Message = "Failed to create investor profile." });
+                return BadRequest(new { Message = response.ErrorMessage ?? "Failed to create investor profile." });
             }
 
-            var otp = Random.Shared.Next(100000, 999999).ToString();
-            var expiry = DateTime.UtcNow.AddMinutes(10);
-            AuthController._loginOtps[response.Email!.ToLowerInvariant()] = (otp, expiry);
+            if (!string.IsNullOrEmpty(response.Email))
+            {
+                var otp = Random.Shared.Next(100000, 999999).ToString();
+                var expiry = DateTime.UtcNow.AddMinutes(10);
+                AuthController._loginOtps[response.Email.ToLowerInvariant()] = (otp, expiry);
 
-            await _emailService.SendEmailAsync(
-                response.Email!,
-                "Welcome to InvestPro",
-                $"Welcome to InvestPro! You have been added as an Investor. You can now log in using your registered email address.\n\nYour login verification code is: {otp}. This code will expire in 10 minutes.");
+                try
+                {
+                    await _emailService.SendEmailAsync(
+                        response.Email,
+                        "Welcome to InvestPro",
+                        $"Welcome to InvestPro! You have been added as an Investor. You can now log in using your registered email address.\n\nYour login verification code is: {otp}. This code will expire in 10 minutes.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[EmailService WARNING] Could not send welcome email to {response.Email}: {ex.Message}");
+                }
+            }
 
             return Ok(new
             {

@@ -69,15 +69,7 @@ public class ContextSeed
             }
         }
 
-        // 4. Purge ALL OTHER users except tessma.cm@gmail.com and imsmanager@yopmail.com
-        var otherUsers = userManager.Users
-            .Where(u => u.Email != "tessma.cm@gmail.com" && u.Email != "imsmanager@yopmail.com")
-            .ToList();
 
-        foreach (var u in otherUsers)
-        {
-            await userManager.DeleteAsync(u);
-        }
 
         // 5. Ensure default project "Current Operations" exists
         if (context != null)

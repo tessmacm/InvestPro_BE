@@ -105,10 +105,13 @@ public class RegisterInvestorDTO
     public string? date_of_onboarding { get; set; } 
     public int? min_RoiRangeId { get; set; }
     public int? max_RoiRangeId { get; set; }
+    public int? min_roi_id { get; set; }
+    public int? max_roi_id { get; set; }
     public int? roiTypeId { get; set; }
     public string? bank { get; set; }
     public string? acNumber { get; set; } 
     public string? soreCode { get; set; }
+    public string? sortCode { get; set; }
     public string? notes { get; set; } 
 }
 public class InvestorRegistrationResponse
