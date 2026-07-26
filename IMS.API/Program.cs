@@ -173,14 +173,13 @@ app.UseExceptionHandler(options =>
     {
         var ex = context.Features.Get<IExceptionHandlerFeature>();
 
-        if (ex !=null)
+        if (ex != null)
         {
-            //ex.Error
-            context.Response.StatusCode = 500; // Internal Server Error
+            context.Response.StatusCode = 500;
             context.Response.ContentType = "application/json"; 
-            var msg =(ex.Error.InnerException != null) ? ex.Error.InnerException.Message : ex.Error.Message;
-            // log this message
-            await context.Response.WriteAsync("Admin is working on it at application level " + msg);
+            var msg = (ex.Error.InnerException != null) ? ex.Error.InnerException.Message : ex.Error.Message;
+            var jsonResponse = System.Text.Json.JsonSerializer.Serialize(new { message = $"Internal Server Error: {msg}" });
+            await context.Response.WriteAsync(jsonResponse);
         }
     });
 });

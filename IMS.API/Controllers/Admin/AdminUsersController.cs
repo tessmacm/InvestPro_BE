@@ -10,6 +10,7 @@ using System;
 namespace IMS.API.Controllers.Admin;
 
 [Route("api/admin/users")]
+[Route("api/users")]
 [ApiController]
 public class AdminUsersController : ControllerBase
 {
@@ -23,7 +24,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme,Policy = "ElevatedRights")] // Only allow Admin role to access this controller
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "ElevatedRights")]
     public async Task<IActionResult> GetAllAdminUsers()
     {
         var admins = await _adminService.GetAllAdminUsersAsync();
@@ -31,20 +32,35 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "SuperAdminOnly")] // Only allow Admin role to access this controller
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "SuperAdminOnly")]
     public async Task<IActionResult> CreateAdminUser([FromBody] CreateAdminUserDTO createDto)
     {
+        if (createDto == null)
+        {
+            return BadRequest(new { Message = "User data required." });
+        }
+
         var (succeeded, errors) = await _adminService.CreateAdminUserAsync(createDto);
         if (succeeded)
         {
-            var otp = Random.Shared.Next(100000, 999999).ToString();
-            var expiry = DateTime.UtcNow.AddMinutes(10);
-            AuthController._loginOtps[createDto.Email.ToLowerInvariant()] = (otp, expiry);
+            if (!string.IsNullOrEmpty(createDto.Email))
+            {
+                var otp = Random.Shared.Next(100000, 999999).ToString();
+                var expiry = DateTime.UtcNow.AddMinutes(10);
+                AuthController._loginOtps[createDto.Email.ToLowerInvariant()] = (otp, expiry);
 
-            await _emailService.SendEmailAsync(
-                createDto.Email,
-                "Welcome to InvestPro",
-                $"Welcome to InvestPro! Your account has been created by the administrator with the role of '{createDto.Role}'. You can now log in using your registered email address.\n\nYour login verification code is: {otp}. This code will expire in 10 minutes.");
+                try
+                {
+                    await _emailService.SendEmailAsync(
+                        createDto.Email,
+                        "Welcome to InvestPro",
+                        $"Welcome to InvestPro! Your account has been created by the administrator with the role of '{createDto.Role}'. You can now log in using your registered email address.\n\nYour login verification code is: {otp}. This code will expire in 10 minutes.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[EmailService WARNING] Could not send welcome email to {createDto.Email}: {ex.Message}");
+                }
+            }
 
             return Ok(new { Message = "Admin user created successfully." });
         }
