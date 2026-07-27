@@ -119,7 +119,8 @@ public class InvestorManagementService : IInvestorManagementService
             sortCode = r.Investor.SortCode ?? "—",
             witness = r.Investor.Witness ?? "Accredited",
             address = r.Investor.Address ?? "—",
-            projectId = r.Investor.ProjectId ?? 1
+            projectId = r.Investor.ProjectId ?? 1,
+            notes = r.Investor.Notes ?? "—"
         }).ToList();
     }
 

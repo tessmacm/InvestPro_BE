@@ -40,6 +40,7 @@ public class InvestorSummaryDTO
     public string? witness { get; set; }
     public string? address { get; set; }
     public int? projectId { get; set; }
+    public string? notes { get; set; }
 }
 
 public class InvestorDetailsDTO
