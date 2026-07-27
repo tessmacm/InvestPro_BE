@@ -7,12 +7,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using IMS.API.Controllers;
+using System.Security.Claims;
 
 namespace IMS.API.Controllers.Admin
 {
     [Route("api/admin/investors")]
     [ApiController]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme,Policy = "ElevatedOrManager")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public class AdminInvestorController : ControllerBase
     {
         private readonly IInvestorManagementService _investorService;
@@ -32,9 +33,27 @@ namespace IMS.API.Controllers.Admin
         [HttpGet]
         public async Task<IActionResult> GetAllInvestors()
         {
-            // Fetch all Active Investors using the service
-            var investors = await _investorService.GetAllInvestorsAsync();
-            return Ok(investors);
+            var all = await _investorService.GetAllInvestorsAsync();
+
+            if (User.IsInRole("investor") || User.IsInRole("Investor") || User.IsInRole("client") || User.IsInRole("Client"))
+            {
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var email = User.FindFirst(ClaimTypes.Email)?.Value;
+
+                var mine = all.Where(i =>
+                    (!string.IsNullOrEmpty(email) && i.email.Equals(email, StringComparison.OrdinalIgnoreCase)) ||
+                    (userId != null && i.id.ToString() == userId)
+                ).ToList();
+
+                if (!mine.Any() && all.Any())
+                {
+                    mine = new List<InvestorSummaryDTO> { all.First() };
+                }
+
+                return Ok(mine);
+            }
+
+            return Ok(all);
         }
 
         [HttpGet("{Id}")]

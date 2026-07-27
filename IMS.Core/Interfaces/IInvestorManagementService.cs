@@ -30,6 +30,16 @@ public class InvestorSummaryDTO
     public string accreditation { get; set; } = string.Empty;
     public string status { get; set; } = string.Empty;
     public string date_of_onboarding { get; set; } = string.Empty;
+    public int? min_roi_id { get; set; }
+    public int? max_roi_id { get; set; }
+    public int? roiTypeId { get; set; }
+    public string? payoutType { get; set; }
+    public string? bank { get; set; }
+    public string? acNumber { get; set; }
+    public string? sortCode { get; set; }
+    public string? witness { get; set; }
+    public string? address { get; set; }
+    public int? projectId { get; set; }
 }
 
 public class InvestorDetailsDTO
@@ -49,9 +59,13 @@ public class InvestorDetailsDTO
     public int? min_roi_id { get; set; }
     public int? max_roi_id { get; set; }
     public int? roiTypeId { get; set; }
+    public string? payoutType { get; set; }
     public string? bank { get; set; }
     public string? acNumber { get; set; }
     public string? sortCode { get; set; }
+    public string? witness { get; set; }
+    public string? address { get; set; }
+    public int? projectId { get; set; }
     public string? notes { get; set; }
 }
 public class CreateInvestorProfileDTO
@@ -80,10 +94,17 @@ public class UpdateInvestorDetailsDTO
     public string? date_of_onboarding { get; set; }
     public int? min_roi_id { get; set; }
     public int? max_roi_id { get; set; }
+    public int? min_RoiRangeId { get; set; }
+    public int? max_RoiRangeId { get; set; }
     public int? roiTypeId { get; set; }
+    public string? payoutType { get; set; }
     public string? bank { get; set; }
     public string? acNumber { get; set; }
     public string? sortCode { get; set; }
+    public string? soreCode { get; set; }
+    public string? witness { get; set; }
+    public string? address { get; set; }
+    public int? projectId { get; set; }
     public string? notes { get; set; }
 }
 public class RegisterInvestorDTO
@@ -98,9 +119,7 @@ public class RegisterInvestorDTO
     public string? authSingerName { get; set; }
     public decimal? amount { get; set; }
     public string? reg_number { get; set; } 
-    //public string interest { get; set; } = string.Empty;
     public string? accreditation { get; set; }
-    //public string country { get; set; } = string.Empty;
     public string? status { get; set; } 
     public string? date_of_onboarding { get; set; } 
     public int? min_RoiRangeId { get; set; }
@@ -108,10 +127,14 @@ public class RegisterInvestorDTO
     public int? min_roi_id { get; set; }
     public int? max_roi_id { get; set; }
     public int? roiTypeId { get; set; }
+    public string? payoutType { get; set; }
     public string? bank { get; set; }
     public string? acNumber { get; set; } 
     public string? soreCode { get; set; }
     public string? sortCode { get; set; }
+    public string? witness { get; set; }
+    public string? address { get; set; }
+    public int? projectId { get; set; }
     public string? notes { get; set; } 
 }
 public class InvestorRegistrationResponse

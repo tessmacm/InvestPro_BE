@@ -99,7 +99,7 @@ public class InvestorManagementService : IInvestorManagementService
         return results.Select(r => new InvestorSummaryDTO
         {
             id = r.Investor.InvestorId ?? 0,
-            name = r.User != null ? $"{r.User.FirstName} {r.User.LastName}".Trim() : "Unknown",
+            name = r.User != null ? $"{r.User.FirstName} {r.User.LastName}".Trim() : (r.Investor.LegalBusinessName ?? "Investor"),
             email = r.User?.Email ?? "",
             mobile = r.User?.PhoneNumber ?? "",
             type = r.InvestorTypeName ?? "Individual",
@@ -109,7 +109,17 @@ public class InvestorManagementService : IInvestorManagementService
             reg_number = r.Investor.CompanyRegistrationNo ?? "—",
             accreditation = r.Investor.AuthorizedSignerName ?? "Accredited",
             status = (r.User?.IsActive ?? true) ? "active" : "inactive",
-            date_of_onboarding = r.User != null ? r.User.CreatedAt.ToString("dd MMM yyyy") : "15 May 2024",
+            date_of_onboarding = r.Investor.DateOfBoarding.HasValue ? r.Investor.DateOfBoarding.Value.ToString("yyyy-MM-dd") : (r.User != null ? r.User.CreatedAt.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd")),
+            min_roi_id = r.Investor.MinRoiRangeId,
+            max_roi_id = r.Investor.MaxRoiRangeId,
+            roiTypeId = r.Investor.RoiTypeId,
+            payoutType = r.Investor.PayoutType ?? (r.Investor.RoiTypeId == 1 ? "Fixed" : "Variant"),
+            bank = r.Investor.BankName ?? "—",
+            acNumber = r.Investor.BankAccountNo ?? "—",
+            sortCode = r.Investor.SortCode ?? "—",
+            witness = r.Investor.Witness ?? "Accredited",
+            address = r.Investor.Address ?? "—",
+            projectId = r.Investor.ProjectId ?? 1
         }).ToList();
     }
 
@@ -126,10 +136,10 @@ public class InvestorManagementService : IInvestorManagementService
         return new InvestorDetailsDTO
         {
             id = investor.InvestorId ?? 0,
-            name = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "Unknown",
+            name = user != null ? $"{user.FirstName} {user.LastName}".Trim() : (investor.LegalBusinessName ?? "Investor"),
             email = user?.Email ?? "",
             mobile = user?.PhoneNumber ?? "",
-            type = (int)investor.InvestorTypeId!,
+            type = (int)(investor.InvestorTypeId ?? 1),
             organization = investor.LegalBusinessName ?? "—",
             authSingerName = investor.AuthorizedSignerName ?? "Accredited",
             amount = investor.CapitalAmount ?? 0,
@@ -137,14 +147,18 @@ public class InvestorManagementService : IInvestorManagementService
             accreditation = investor.AuthorizedSignerName ?? "Accredited",
             status = (user?.IsActive ?? true) ? "active" : "inactive",
             date_of_onboarding = investor.DateOfBoarding.HasValue 
-                ? investor.DateOfBoarding.Value.ToString("dd MMM yyyy") 
-                : "15 May 2024",
+                ? investor.DateOfBoarding.Value.ToString("yyyy-MM-dd") 
+                : (user != null ? user.CreatedAt.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd")),
             min_roi_id = investor.MinRoiRangeId,
             max_roi_id = investor.MaxRoiRangeId,
             roiTypeId = investor.RoiTypeId,
+            payoutType = investor.PayoutType ?? (investor.RoiTypeId == 1 ? "Fixed" : "Variant"),
             bank = investor.BankName,
             acNumber = investor.BankAccountNo,
             sortCode = investor.SortCode,
+            witness = investor.Witness,
+            address = investor.Address,
+            projectId = investor.ProjectId ?? 1,
             notes = investor.Notes
         };
     }
@@ -224,9 +238,13 @@ public class InvestorManagementService : IInvestorManagementService
             MinRoiRangeId = Math.Clamp(dto.min_RoiRangeId ?? dto.min_roi_id ?? 1, 1, 4),
             MaxRoiRangeId = Math.Clamp(dto.max_RoiRangeId ?? dto.max_roi_id ?? 4, 1, 4),
             RoiTypeId = Math.Clamp(dto.roiTypeId ?? 3, 1, 5),
+            PayoutType = dto.payoutType ?? (dto.roiTypeId == 1 ? "Fixed" : "Variant"),
             BankName = dto.bank,
             BankAccountNo = dto.acNumber,
-            SortCode = !string.IsNullOrEmpty(dto.sortCode) ? dto.sortCode : dto.soreCode
+            SortCode = !string.IsNullOrEmpty(dto.sortCode) ? dto.sortCode : dto.soreCode,
+            Witness = dto.witness,
+            Address = dto.address,
+            ProjectId = dto.projectId ?? 1
         };
 
         // Save via Unit of Work
@@ -285,14 +303,17 @@ public class InvestorManagementService : IInvestorManagementService
         investor.TaxIdOrSSN = "—";
         investor.Notes = dto.notes ?? "Basic";
         investor.InvestorTypeId = dto.type;
-        //investor.InvestmentInterestId = int.TryParse(dto.interest, out var intId) ? intId : 1;
         investor.DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow;
-        investor.MinRoiRangeId = dto.min_roi_id;
-        investor.MaxRoiRangeId = dto.max_roi_id;
+        investor.MinRoiRangeId = dto.min_roi_id ?? dto.min_RoiRangeId;
+        investor.MaxRoiRangeId = dto.max_roi_id ?? dto.max_RoiRangeId;
         investor.RoiTypeId = dto.roiTypeId ?? 3;
+        investor.PayoutType = dto.payoutType;
         investor.BankName = dto.bank;
         investor.BankAccountNo = dto.acNumber;
-        investor.SortCode = dto.sortCode;
+        investor.SortCode = !string.IsNullOrEmpty(dto.sortCode) ? dto.sortCode : dto.soreCode;
+        if (!string.IsNullOrEmpty(dto.witness)) investor.Witness = dto.witness;
+        if (!string.IsNullOrEmpty(dto.address)) investor.Address = dto.address;
+        if (dto.projectId.HasValue) investor.ProjectId = dto.projectId;
 
         // Recalculate pending payments
         var pendingPayments = await _context.Payments

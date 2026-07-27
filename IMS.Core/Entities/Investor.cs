@@ -33,6 +33,10 @@ public class Investor
     public string? BankName { get; set; }
     public string? BankAccountNo { get; set; }
     public string? SortCode { get; set; }
+    public string? Address { get; set; }
+    public string? Witness { get; set; }
+    public string? PayoutType { get; set; }
+    public int? ProjectId { get; set; }
     public int? InvestorTypeId { get; set; }
     public InvestorType? InvestorTypeNav { get; set; }
     public bool IsAgreedToTerms { get; set; } = false;
