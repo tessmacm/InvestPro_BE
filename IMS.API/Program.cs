@@ -236,6 +236,26 @@ using (var scope = app.Services.CreateScope())
                     ALTER TABLE InvestorDocuments ADD SignedAt DATETIME2 NULL;
                 END
             END
+
+            IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Investors')
+            BEGIN
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Investors' AND COLUMN_NAME = 'Address')
+                BEGIN
+                    ALTER TABLE Investors ADD Address NVARCHAR(MAX) NULL;
+                END
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Investors' AND COLUMN_NAME = 'Witness')
+                BEGIN
+                    ALTER TABLE Investors ADD Witness NVARCHAR(255) NULL;
+                END
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Investors' AND COLUMN_NAME = 'PayoutType')
+                BEGIN
+                    ALTER TABLE Investors ADD PayoutType NVARCHAR(100) NULL;
+                END
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Investors' AND COLUMN_NAME = 'ProjectId')
+                BEGIN
+                    ALTER TABLE Investors ADD ProjectId INT NULL;
+                END
+            END
         ");
 
         // Apply new pending migrations
