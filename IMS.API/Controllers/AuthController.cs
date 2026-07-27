@@ -398,29 +398,24 @@ namespace IMS.API.Controllers
             var expiry = DateTime.UtcNow.AddMinutes(10);
             _loginOtps[model.Email.ToLowerInvariant()] = (otp, expiry);
 
-            Console.WriteLine($"[AUTH OTP LOG] Generated 6-digit OTP for {model.Email}: {otp} (Fallback test OTP: 010101)");
+            Console.WriteLine($"[AUTH OTP LOG] Generated 6-digit OTP for {model.Email}: {otp}");
 
-            bool emailSentSuccessfully = false;
             try
             {
                 await _emailService.SendEmailAsync(
                     user.Email!,
                     "Login Verification Code",
                     $"Your InvestPro login verification code is: <strong>{otp}</strong><br/>This code will expire in 10 minutes.");
-                emailSentSuccessfully = true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EmailService WARNING] Could not send email to {user.Email}: {ex.Message}");
+                Console.WriteLine($"[EmailService ERROR] Could not send email to {user.Email}: {ex.Message}");
+                return StatusCode(500, new { Message = $"Failed to send OTP email: {ex.Message}. Please verify SMTP settings." });
             }
 
             return Ok(new
             {
-                Message = emailSentSuccessfully
-                    ? "OTP sent successfully to your email."
-                    : "OTP generated. Please check your inbox / spam folder or use test OTP.",
-                Otp = otp,
-                DebugOtp = otp
+                Message = "A new 6-digit login code has been sent to your email!"
             });
         }
 
@@ -435,11 +430,7 @@ namespace IMS.API.Controllers
             var emailKey = model.Email.ToLowerInvariant();
             bool otpIsValid = false;
 
-            if (model.Otp == "010101")
-            {
-                otpIsValid = true;
-            }
-            else if (_loginOtps.TryGetValue(emailKey, out var otpData))
+            if (_loginOtps.TryGetValue(emailKey, out var otpData))
             {
                 if (otpData.Otp == model.Otp && DateTime.UtcNow <= otpData.Expiry)
                 {
