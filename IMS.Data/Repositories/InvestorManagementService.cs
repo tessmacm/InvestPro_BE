@@ -337,7 +337,7 @@ public class InvestorManagementService : IInvestorManagementService
                 user.IsActive = dto.status != "inactive";
                 
                 // Update Email if it changed and does not clash
-                if (user.Email != dto.email)
+                if (!string.IsNullOrWhiteSpace(dto.email) && user.Email != dto.email)
                 {
                     user.Email = dto.email;
                     user.UserName = dto.email;
@@ -348,6 +348,22 @@ public class InvestorManagementService : IInvestorManagementService
                 await _userManager.UpdateAsync(user);
             }
         }
+
+        // Reset Agreement Document to Pending Signature so investor can re-sign updated contract
+        var agreementDoc = await _context.InvestorDocuments
+            .FirstOrDefaultAsync(d => d.InvestorId == profileId && (d.DocumentType == "Agreement" || d.Title.Contains("Agreement")));
+
+        if (agreementDoc != null)
+        {
+            var fullName = !string.IsNullOrWhiteSpace(dto.name) ? dto.name : "Investor";
+            agreementDoc.Title = $"Investment Agreement - {fullName} (Current Operations).pdf";
+            agreementDoc.Status = "Pending Signature";
+            agreementDoc.SignatureData = null;
+            agreementDoc.SignedAt = null;
+            agreementDoc.UploadedAt = DateTime.UtcNow;
+        }
+
+        investor.IsAgreedToTerms = false;
 
         return await _unitOfWork.CompleteAsync() >= 0;
     }
