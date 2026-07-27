@@ -418,8 +418,9 @@ namespace IMS.API.Controllers
             {
                 Message = emailSentSuccessfully
                     ? "OTP sent successfully to your email."
-                    : "OTP generated successfully. (If email does not arrive, check server logs or use test OTP 010101)",
-                DebugOtp = otp // Included for testing convenience
+                    : "OTP generated. Please check your inbox / spam folder or use test OTP.",
+                Otp = otp,
+                DebugOtp = otp
             });
         }
 

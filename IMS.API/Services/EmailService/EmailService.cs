@@ -47,26 +47,26 @@ public class EmailService : IEmailService
 
         Exception? lastException = null;
 
-        // Attempt 1: Try Port 587 with Auto
+        // Attempt 1: Try Port 465 with SslOnConnect (Fastest & Most Reliable for Gmail SMTP)
         try
         {
             using var smtp = new SmtpClient();
             smtp.Timeout = 10000;
             smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
 
-            Console.WriteLine($"[EmailService] Attempting dispatch to {toEmail} via {_settings.SmtpServer}:{_settings.Port} (Auto)...");
-            await smtp.ConnectAsync(_settings.SmtpServer, _settings.Port, SecureSocketOptions.Auto);
+            Console.WriteLine($"[EmailService] Attempting dispatch to {toEmail} via {_settings.SmtpServer}:465 (SslOnConnect)...");
+            await smtp.ConnectAsync(_settings.SmtpServer, 465, SecureSocketOptions.SslOnConnect);
             await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
             await smtp.SendAsync(email);
             await smtp.DisconnectAsync(true);
 
-            Console.WriteLine($"[EmailService SUCCESS] OTP email dispatched to {toEmail} via {_settings.SmtpServer}:{_settings.Port}");
+            Console.WriteLine($"[EmailService SUCCESS] OTP email dispatched to {toEmail} via {_settings.SmtpServer}:465 (SSL)");
             return;
         }
         catch (Exception ex)
         {
             lastException = ex;
-            Console.WriteLine($"[EmailService WARNING] Port {_settings.Port} Auto failed: {ex.GetType().Name} - {ex.Message}. Trying StartTls...");
+            Console.WriteLine($"[EmailService WARNING] Port 465 SSL failed: {ex.GetType().Name} - {ex.Message}. Trying Port {_settings.Port} (StartTls)...");
         }
 
         // Attempt 2: Try Port 587 with StartTls
@@ -87,22 +87,22 @@ public class EmailService : IEmailService
         catch (Exception ex)
         {
             lastException = ex;
-            Console.WriteLine($"[EmailService WARNING] Port {_settings.Port} StartTls failed: {ex.GetType().Name} - {ex.Message}. Trying Port 465 (SslOnConnect)...");
+            Console.WriteLine($"[EmailService WARNING] Port {_settings.Port} StartTls failed: {ex.GetType().Name} - {ex.Message}. Trying Auto...");
         }
 
-        // Attempt 3: Fallback to Port 465 with SslOnConnect
+        // Attempt 3: Fallback to Port 587 Auto
         try
         {
             using var smtpFallback = new SmtpClient();
             smtpFallback.Timeout = 10000;
             smtpFallback.ServerCertificateValidationCallback = (s, c, h, e) => true;
 
-            await smtpFallback.ConnectAsync(_settings.SmtpServer, 465, SecureSocketOptions.SslOnConnect);
+            await smtpFallback.ConnectAsync(_settings.SmtpServer, _settings.Port, SecureSocketOptions.Auto);
             await smtpFallback.AuthenticateAsync(_settings.Username, _settings.Password);
             await smtpFallback.SendAsync(email);
             await smtpFallback.DisconnectAsync(true);
 
-            Console.WriteLine($"[EmailService SUCCESS] OTP email dispatched to {toEmail} via {_settings.SmtpServer}:465 (Fallback)");
+            Console.WriteLine($"[EmailService SUCCESS] OTP email dispatched to {toEmail} via {_settings.SmtpServer}:{_settings.Port} (Auto)");
             return;
         }
         catch (Exception ex)
