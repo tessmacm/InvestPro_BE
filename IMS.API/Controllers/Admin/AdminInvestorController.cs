@@ -95,20 +95,19 @@ namespace IMS.API.Controllers.Admin
                 try
                 {
                     var fullName = string.IsNullOrWhiteSpace(response.FullName) ? regCreateDto.name ?? "Investor" : response.FullName;
-                    var pdfBytes = PdfAgreementGenerator.GenerateUnsignedAgreementPdf(
-                        investorName: fullName,
-                        investorEmail: response.Email,
-                        organization: regCreateDto.organization ?? "—",
-                        regNumber: regCreateDto.reg_number ?? "—",
-                        capitalAmount: regCreateDto.amount ?? 0,
-                        bankName: regCreateDto.bank,
-                        accountNumber: regCreateDto.acNumber,
-                        sortCode: regCreateDto.sortCode ?? regCreateDto.soreCode,
-                        projectName: "Current Operations"
+                    var (pdfBytes, fileName) = await GetOrGenerateAgreementPdfBytesAsync(
+                        response.InvestorId,
+                        fullName,
+                        response.Email,
+                        regCreateDto.organization ?? "—",
+                        regCreateDto.reg_number ?? "—",
+                        regCreateDto.amount ?? 0m,
+                        regCreateDto.bank,
+                        regCreateDto.acNumber,
+                        regCreateDto.sortCode ?? regCreateDto.soreCode,
+                        forceRegenerate: true
                     );
 
-                    var safeName = fullName.Replace(" ", "_");
-                    var fileName = $"Investment_Agreement_{safeName}_Unsigned.pdf";
                     var subject = "Welcome to InvestPro - Your Investment Agreement (Unsigned)";
                     var body = $@"
                         <div style=""font-family: Arial, sans-serif; color: #333; line-height: 1.6;"">
@@ -153,26 +152,25 @@ namespace IMS.API.Controllers.Admin
                 return BadRequest(new { Message = "Failed to update investor details." });
             }
 
-            // Send updated greeting email with updated unsigned agreement PDF attachment
+            // Reuse and update stored agreement document file under wwwroot/documents/
             try
             {
                 var investor = await _investorService.GetInvestorDetailsByIdAsync(Id);
                 if (investor != null && !string.IsNullOrEmpty(investor.email))
                 {
-                    var pdfBytes = PdfAgreementGenerator.GenerateUnsignedAgreementPdf(
-                        investorName: investor.name ?? "Investor",
-                        investorEmail: investor.email,
-                        organization: investor.organization ?? "—",
-                        regNumber: investor.reg_number ?? "—",
-                        capitalAmount: investor.amount,
-                        bankName: investor.bank,
-                        accountNumber: investor.acNumber,
-                        sortCode: investor.sortCode,
-                        projectName: "Current Operations"
+                    var (pdfBytes, fileName) = await GetOrGenerateAgreementPdfBytesAsync(
+                        Id,
+                        investor.name ?? "Investor",
+                        investor.email,
+                        investor.organization ?? "—",
+                        investor.reg_number ?? "—",
+                        investor.amount,
+                        investor.bank,
+                        investor.acNumber,
+                        investor.sortCode,
+                        forceRegenerate: true
                     );
 
-                    var safeName = (investor.name ?? "Investor").Replace(" ", "_");
-                    var fileName = $"Updated_Investment_Agreement_{safeName}_Unsigned.pdf";
                     var subject = "InvestPro - Updated Investment Agreement (Unsigned)";
                     var body = $@"
                         <div style=""font-family: Arial, sans-serif; color: #333; line-height: 1.6;"">
@@ -200,6 +198,50 @@ namespace IMS.API.Controllers.Admin
             }
 
             return Ok(new { Message = "Investor details updated successfully." });
+        }
+
+        private async Task<(byte[] bytes, string fileName)> GetOrGenerateAgreementPdfBytesAsync(
+            int investorId,
+            string fullName,
+            string email,
+            string organization,
+            string regNumber,
+            decimal capitalAmount,
+            string? bankName,
+            string? accountNumber,
+            string? sortCode,
+            bool forceRegenerate = false)
+        {
+            var documentsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "documents");
+            if (!Directory.Exists(documentsFolder))
+            {
+                Directory.CreateDirectory(documentsFolder);
+            }
+
+            var physicalPath = Path.Combine(documentsFolder, $"agreement_{investorId}.pdf");
+
+            if (forceRegenerate || !System.IO.File.Exists(physicalPath))
+            {
+                var generatedBytes = PdfAgreementGenerator.GenerateUnsignedAgreementPdf(
+                    investorName: fullName,
+                    investorEmail: email,
+                    organization: organization ?? "—",
+                    regNumber: regNumber ?? "—",
+                    capitalAmount: capitalAmount,
+                    bankName: bankName,
+                    accountNumber: accountNumber,
+                    sortCode: sortCode,
+                    projectName: "Current Operations"
+                );
+
+                await System.IO.File.WriteAllBytesAsync(physicalPath, generatedBytes);
+            }
+
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(physicalPath);
+            var safeName = fullName.Replace(" ", "_");
+            var fileName = $"Investment_Agreement_{safeName}_Unsigned.pdf";
+
+            return (fileBytes, fileName);
         }
 
         [HttpDelete("{Id}")]
