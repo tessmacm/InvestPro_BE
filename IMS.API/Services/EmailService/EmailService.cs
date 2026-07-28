@@ -96,4 +96,90 @@ public class EmailService : IEmailService
             throw lastException ?? ex;
         }
     }
+
+    public async Task SendEmailWithAttachmentAsync(string toEmail, string subject, string body, string attachmentFileName, byte[] attachmentBytes, string contentType = "application/pdf")
+    {
+        Console.WriteLine($"[EmailService DIAGNOSTIC START] To={toEmail} | Attachment={attachmentFileName} ({attachmentBytes?.Length ?? 0} bytes) | Server={_settings.SmtpServer} | Port={_settings.Port}");
+
+        var email = new MimeMessage();
+        email.From.Add(new MailboxAddress(_settings.SenderName ?? "InvestPro", _settings.SenderEmail));
+        email.To.Add(MailboxAddress.Parse(toEmail));
+        email.Subject = subject;
+
+        var builder = new BodyBuilder();
+        builder.HtmlBody = body;
+        if (attachmentBytes != null && attachmentBytes.Length > 0)
+        {
+            builder.Attachments.Add(attachmentFileName, attachmentBytes, ContentType.Parse(contentType));
+        }
+        email.Body = builder.ToMessageBody();
+
+        Exception? lastException = null;
+
+        // Attempt 1: Port 587 with StartTls
+        try
+        {
+            Console.WriteLine($"[EmailService] Attempt 1: Connecting to {_settings.SmtpServer}:{_settings.Port} (StartTls)...");
+            using var smtp = new SmtpClient();
+            smtp.Timeout = 15000;
+            smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+            await smtp.ConnectAsync(_settings.SmtpServer, _settings.Port, SecureSocketOptions.StartTls);
+            await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
+            await smtp.SendAsync(email);
+            await smtp.DisconnectAsync(true);
+
+            Console.WriteLine($"[EmailService SUCCESS] Email with attachment sent to {toEmail} via Port {_settings.Port} (StartTls)");
+            return;
+        }
+        catch (Exception ex)
+        {
+            lastException = ex;
+            Console.WriteLine($"[EmailService ERROR - Attempt 1 Failed] {ex.GetType().FullName}: {ex.Message} | Inner: {ex.InnerException?.Message}");
+        }
+
+        // Attempt 2: Port 465 with SslOnConnect
+        try
+        {
+            Console.WriteLine($"[EmailService] Attempt 2: Connecting to {_settings.SmtpServer}:465 (SslOnConnect)...");
+            using var smtp = new SmtpClient();
+            smtp.Timeout = 15000;
+            smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+            await smtp.ConnectAsync(_settings.SmtpServer, 465, SecureSocketOptions.SslOnConnect);
+            await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
+            await smtp.SendAsync(email);
+            await smtp.DisconnectAsync(true);
+
+            Console.WriteLine($"[EmailService SUCCESS] Email with attachment sent to {toEmail} via Port 465 (SSL)");
+            return;
+        }
+        catch (Exception ex)
+        {
+            lastException = ex;
+            Console.WriteLine($"[EmailService ERROR - Attempt 2 Failed] {ex.GetType().FullName}: {ex.Message} | Inner: {ex.InnerException?.Message}");
+        }
+
+        // Attempt 3: Port 587 Auto
+        try
+        {
+            Console.WriteLine($"[EmailService] Attempt 3: Connecting to {_settings.SmtpServer}:{_settings.Port} (Auto)...");
+            using var smtp = new SmtpClient();
+            smtp.Timeout = 15000;
+            smtp.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+            await smtp.ConnectAsync(_settings.SmtpServer, _settings.Port, SecureSocketOptions.Auto);
+            await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
+            await smtp.SendAsync(email);
+            await smtp.DisconnectAsync(true);
+
+            Console.WriteLine($"[EmailService SUCCESS] Email with attachment sent to {toEmail} via Port {_settings.Port} (Auto)");
+            return;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[EmailService ERROR - Attempt 3 Failed] {ex.GetType().FullName}: {ex.Message} | Inner: {ex.InnerException?.Message}");
+            throw lastException ?? ex;
+        }
+    }
 }

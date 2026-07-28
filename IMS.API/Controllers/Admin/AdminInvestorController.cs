@@ -1,4 +1,5 @@
 using IMS.API.Services.EmailService;
+using IMS.API.Helpers;
 using IMS.Core.Interfaces;
 using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -93,14 +94,47 @@ namespace IMS.API.Controllers.Admin
 
                 try
                 {
-                    await _emailService.SendEmailAsync(
+                    var fullName = string.IsNullOrWhiteSpace(response.FullName) ? regCreateDto.name ?? "Investor" : response.FullName;
+                    var pdfBytes = PdfAgreementGenerator.GenerateUnsignedAgreementPdf(
+                        investorName: fullName,
+                        investorEmail: response.Email,
+                        organization: regCreateDto.organization ?? "—",
+                        regNumber: regCreateDto.reg_number ?? "—",
+                        capitalAmount: regCreateDto.amount ?? 0,
+                        bankName: regCreateDto.bank,
+                        accountNumber: regCreateDto.acNumber,
+                        sortCode: regCreateDto.sortCode ?? regCreateDto.soreCode,
+                        projectName: "Current Operations"
+                    );
+
+                    var safeName = fullName.Replace(" ", "_");
+                    var fileName = $"Investment_Agreement_{safeName}_Unsigned.pdf";
+                    var subject = "Welcome to InvestPro - Your Investment Agreement (Unsigned)";
+                    var body = $@"
+                        <div style=""font-family: Arial, sans-serif; color: #333; line-height: 1.6;"">
+                            <h2 style=""color: #1e3a8a;"">Welcome to InvestPro!</h2>
+                            <p>Dear <strong>{fullName}</strong>,</p>
+                            <p>Welcome to InvestPro! Your investor profile has been created successfully.</p>
+                            <p>Attached to this email is your <strong>Investment Agreement (Unsigned Draft)</strong> for your review.</p>
+                            <p>You can log into the InvestPro platform using your registered email address (<strong>{response.Email}</strong>) to review and digitally sign your agreement.</p>
+                            <p style=""background-color: #f1f5f9; padding: 12px; border-radius: 8px; font-weight: bold; color: #1e293b;"">
+                                Your login OTP verification code is: <span style=""color: #2563eb; font-size: 18px;"">{otp}</span> (valid for 10 minutes)
+                            </p>
+                            <br/>
+                            <p>Best regards,<br/><strong>InvestPro Team</strong></p>
+                        </div>";
+
+                    await _emailService.SendEmailWithAttachmentAsync(
                         response.Email,
-                        "Welcome to InvestPro",
-                        $"Welcome to InvestPro! You have been added as an Investor. You can now log in using your registered email address.\n\nYour login verification code is: {otp}. This code will expire in 10 minutes.");
+                        subject,
+                        body,
+                        fileName,
+                        pdfBytes
+                    );
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[EmailService WARNING] Could not send welcome email to {response.Email}: {ex.Message}");
+                    Console.WriteLine($"[EmailService WARNING] Could not send welcome email with agreement attachment to {response.Email}: {ex.Message}");
                 }
             }
 
@@ -114,9 +148,58 @@ namespace IMS.API.Controllers.Admin
         public async Task<IActionResult> UpdateInvestorDetails(int Id, [FromBody] UpdateInvestorDetailsDTO updateDto)
         {
             var result = await _investorService.UpdateInvestorDetailsAsync(Id, updateDto);
-            if (result)
-                return Ok(new { Message = "Investor details updated successfully." });
-            return BadRequest(new { Message = "Failed to update investor details." });
+            if (!result)
+            {
+                return BadRequest(new { Message = "Failed to update investor details." });
+            }
+
+            // Send updated greeting email with updated unsigned agreement PDF attachment
+            try
+            {
+                var investor = await _investorService.GetInvestorDetailsByIdAsync(Id);
+                if (investor != null && !string.IsNullOrEmpty(investor.email))
+                {
+                    var pdfBytes = PdfAgreementGenerator.GenerateUnsignedAgreementPdf(
+                        investorName: investor.name ?? "Investor",
+                        investorEmail: investor.email,
+                        organization: investor.organization ?? "—",
+                        regNumber: investor.reg_number ?? "—",
+                        capitalAmount: investor.amount,
+                        bankName: investor.bank,
+                        accountNumber: investor.acNumber,
+                        sortCode: investor.sortCode,
+                        projectName: "Current Operations"
+                    );
+
+                    var safeName = (investor.name ?? "Investor").Replace(" ", "_");
+                    var fileName = $"Updated_Investment_Agreement_{safeName}_Unsigned.pdf";
+                    var subject = "InvestPro - Updated Investment Agreement (Unsigned)";
+                    var body = $@"
+                        <div style=""font-family: Arial, sans-serif; color: #333; line-height: 1.6;"">
+                            <h2 style=""color: #1e3a8a;"">Investment Agreement Updated</h2>
+                            <p>Dear <strong>{investor.name}</strong>,</p>
+                            <p>Your investor profile details and capital commitment terms have been updated on InvestPro.</p>
+                            <p>Attached is your newly updated <strong>Investment Agreement (Unsigned Draft)</strong> reflecting your latest profile and capital commitment details.</p>
+                            <p>Please log into your InvestPro dashboard to review and digitally sign your updated agreement.</p>
+                            <br/>
+                            <p>Best regards,<br/><strong>InvestPro Team</strong></p>
+                        </div>";
+
+                    await _emailService.SendEmailWithAttachmentAsync(
+                        investor.email,
+                        subject,
+                        body,
+                        fileName,
+                        pdfBytes
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EmailService WARNING] Could not send updated agreement email to investor {Id}: {ex.Message}");
+            }
+
+            return Ok(new { Message = "Investor details updated successfully." });
         }
 
         [HttpDelete("{Id}")]
