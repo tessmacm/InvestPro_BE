@@ -1,5 +1,4 @@
 using IMS.API.Services.EmailService;
-using IMS.API.Helpers;
 using IMS.Core.Interfaces;
 using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -95,18 +94,7 @@ namespace IMS.API.Controllers.Admin
                 try
                 {
                     var fullName = string.IsNullOrWhiteSpace(response.FullName) ? regCreateDto.name ?? "Investor" : response.FullName;
-                    var (pdfBytes, fileName) = await GetOrGenerateAgreementPdfBytesAsync(
-                        response.InvestorId,
-                        fullName,
-                        response.Email,
-                        regCreateDto.organization ?? "—",
-                        regCreateDto.reg_number ?? "—",
-                        regCreateDto.amount ?? 0m,
-                        regCreateDto.bank,
-                        regCreateDto.acNumber,
-                        regCreateDto.sortCode ?? regCreateDto.soreCode,
-                        forceRegenerate: true
-                    );
+                    var (pdfBytes, fileName) = await GetAgreementPdfBytesAsync(response.InvestorId, fullName);
 
                     var subject = "Welcome to InvestPro - Your Investment Agreement (Unsigned)";
                     var body = $@"
@@ -152,24 +140,13 @@ namespace IMS.API.Controllers.Admin
                 return BadRequest(new { Message = "Failed to update investor details." });
             }
 
-            // Reuse and update stored agreement document file under wwwroot/documents/
+            // Reuse stored authentic agreement document file
             try
             {
                 var investor = await _investorService.GetInvestorDetailsByIdAsync(Id);
                 if (investor != null && !string.IsNullOrEmpty(investor.email))
                 {
-                    var (pdfBytes, fileName) = await GetOrGenerateAgreementPdfBytesAsync(
-                        Id,
-                        investor.name ?? "Investor",
-                        investor.email,
-                        investor.organization ?? "—",
-                        investor.reg_number ?? "—",
-                        investor.amount,
-                        investor.bank,
-                        investor.acNumber,
-                        investor.sortCode,
-                        forceRegenerate: true
-                    );
+                    var (pdfBytes, fileName) = await GetAgreementPdfBytesAsync(Id, investor.name ?? "Investor");
 
                     var subject = "InvestPro - Updated Investment Agreement (Unsigned)";
                     var body = $@"
@@ -200,47 +177,45 @@ namespace IMS.API.Controllers.Admin
             return Ok(new { Message = "Investor details updated successfully." });
         }
 
-        private async Task<(byte[] bytes, string fileName)> GetOrGenerateAgreementPdfBytesAsync(
-            int investorId,
-            string fullName,
-            string email,
-            string organization,
-            string regNumber,
-            decimal capitalAmount,
-            string? bankName,
-            string? accountNumber,
-            string? sortCode,
-            bool forceRegenerate = false)
+        private async Task<(byte[] bytes, string fileName)> GetAgreementPdfBytesAsync(int investorId, string fullName)
         {
-            var documentsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "documents");
+            var wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var documentsFolder = Path.Combine(wwwroot, "documents");
+            var templatesFolder = Path.Combine(wwwroot, "templates");
+
             if (!Directory.Exists(documentsFolder))
             {
                 Directory.CreateDirectory(documentsFolder);
             }
 
             var physicalPath = Path.Combine(documentsFolder, $"agreement_{investorId}.pdf");
-
-            if (forceRegenerate || !System.IO.File.Exists(physicalPath))
+            var templatePath = Path.Combine(templatesFolder, "agreement_template.pdf");
+            if (!System.IO.File.Exists(templatePath))
             {
-                var generatedBytes = PdfAgreementGenerator.GenerateUnsignedAgreementPdf(
-                    investorName: fullName,
-                    investorEmail: email,
-                    organization: organization ?? "—",
-                    regNumber: regNumber ?? "—",
-                    capitalAmount: capitalAmount,
-                    bankName: bankName,
-                    accountNumber: accountNumber,
-                    sortCode: sortCode,
-                    projectName: "Current Operations"
-                );
-
-                await System.IO.File.WriteAllBytesAsync(physicalPath, generatedBytes);
+                templatePath = @"c:\Users\shaik\WORK\ANTIGRAVITY_WORKSPACES\InvestProApp\Docs\Fareed Chunara - 2nd Agreement - V1.0.pdf";
             }
 
-            var fileBytes = await System.IO.File.ReadAllBytesAsync(physicalPath);
-            var safeName = fullName.Replace(" ", "_");
-            var fileName = $"Investment_Agreement_{safeName}_Unsigned.pdf";
+            // Copy authentic template to investor documents path if not existing
+            if (!System.IO.File.Exists(physicalPath) && System.IO.File.Exists(templatePath))
+            {
+                System.IO.File.Copy(templatePath, physicalPath, overwrite: true);
+            }
 
+            byte[] fileBytes;
+            if (System.IO.File.Exists(physicalPath))
+            {
+                fileBytes = await System.IO.File.ReadAllBytesAsync(physicalPath);
+            }
+            else if (System.IO.File.Exists(templatePath))
+            {
+                fileBytes = await System.IO.File.ReadAllBytesAsync(templatePath);
+            }
+            else
+            {
+                throw new FileNotFoundException("Agreement PDF template file not found.");
+            }
+
+            var fileName = $"Investment Agreement - {fullName} (Current Operations).pdf";
             return (fileBytes, fileName);
         }
 
