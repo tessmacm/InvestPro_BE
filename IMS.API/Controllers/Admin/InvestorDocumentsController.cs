@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace IMS.API.Controllers.Admin
@@ -17,12 +18,14 @@ namespace IMS.API.Controllers.Admin
         private readonly IInvestorDocumentService _documentService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IWebHostEnvironment _env;
+        private readonly ApplicationDbContext _context;
 
-        public InvestorDocumentsController(IInvestorDocumentService investorDocumentService, UserManager<ApplicationUser> userManager, IWebHostEnvironment env)
+        public InvestorDocumentsController(IInvestorDocumentService investorDocumentService, UserManager<ApplicationUser> userManager, IWebHostEnvironment env, ApplicationDbContext context)
         {
             _documentService = investorDocumentService;
             _userManager = userManager;
             _env = env;
+            _context = context;
         }
 
         [HttpGet]
@@ -63,7 +66,7 @@ namespace IMS.API.Controllers.Admin
 
         [HttpPost]
         [Authorize(Policy = "ElevatedOrManager")]
-        public async Task<IActionResult> UploadInvestorDoc([FromQuery] int id, [FromForm] string title, [FromForm] string type, IFormFile file)
+        public async Task<IActionResult> UploadInvestorDoc([FromQuery] int id, [FromQuery] string? targetIds, [FromForm] string title, [FromForm] string type, IFormFile file)
         {
             var adminUserId = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -105,8 +108,53 @@ namespace IMS.API.Controllers.Admin
                 uploaded_by = adminUserId
             };
 
-            var success = await _documentService.UploadDocumentMetadataAsync(id, dto);
-            return Ok(new { message = "Document uploaded successfully.", url = fileUrl });
+            var targetInvestorIds = new List<int>();
+            if (!string.IsNullOrWhiteSpace(targetIds))
+            {
+                var parts = targetIds.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var p in parts)
+                {
+                    if (int.TryParse(p.Trim(), out var parsedId) && parsedId > 0)
+                    {
+                        targetInvestorIds.Add(parsedId);
+                    }
+                }
+            }
+
+            if (targetInvestorIds.Count == 0)
+            {
+                if (id > 0)
+                {
+                    targetInvestorIds.Add(id);
+                }
+                else
+                {
+                    // Target all active investors
+                    var activeInvestorIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                        _context.Investors.AsNoTracking()
+                            .Join(_context.Users.AsNoTracking(), inv => inv.OwnerUserId, u => u.Id, (inv, u) => new { inv, u })
+                            .Where(x => x.u.IsActive)
+                            .Select(x => x.inv.InvestorId ?? 0)
+                            .Where(invId => invId > 0)
+                    );
+
+                    if (activeInvestorIds.Any())
+                    {
+                        targetInvestorIds.AddRange(activeInvestorIds);
+                    }
+                    else
+                    {
+                        targetInvestorIds.Add(0);
+                    }
+                }
+            }
+
+            foreach (var invId in targetInvestorIds.Distinct())
+            {
+                await _documentService.UploadDocumentMetadataAsync(invId, dto);
+            }
+
+            return Ok(new { message = "Document uploaded successfully.", url = fileUrl, recipientCount = targetInvestorIds.Count });
         }
 
         [HttpDelete("{id}")]
