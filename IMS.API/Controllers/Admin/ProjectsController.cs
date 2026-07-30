@@ -130,15 +130,9 @@ namespace IMS.API.Controllers.Admin
 
         [HttpDelete("{id}")]
         [Authorize(Policy = "ElevatedOrManager")]
-        public async Task<IActionResult> DeleteProject(int id)
+        public IActionResult DeleteProject(int id)
         {
-            var project = await _context.Projects.FindAsync(id);
-            if (project == null) return NotFound(new { Message = "Project not found" });
-
-            _context.Projects.Remove(project);
-            await _unitOfWork.CompleteAsync();
-
-            return Ok(new { success = true });
+            return BadRequest(new { Message = "Projects cannot be deleted. They can only be set to active or inactive." });
         }
 
         [HttpPatch("{id}/status")]
