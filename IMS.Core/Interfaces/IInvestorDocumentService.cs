@@ -23,6 +23,8 @@ public class InvestorDocumentDTO
 {
     public int id { get; set; }
     public int investor_id { get; set; }
+    public string? investor_name { get; set; }
+    public string? investor_email { get; set; }
     public string title { get; set; } = string.Empty;
     public string type { get; set; } = string.Empty;
     public string size { get; set; } = string.Empty;

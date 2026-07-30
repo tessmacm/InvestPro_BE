@@ -35,11 +35,30 @@ public class InvestorDocumentService : IInvestorDocumentService
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == d.UploadedById);
             var userName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "System Admin";
             if (string.IsNullOrEmpty(userName)) userName = "System Admin";
-            
+
+            string investorName = "Investor Profile";
+            string investorEmail = "";
+            var inv = await _context.Investors.FirstOrDefaultAsync(i => i.InvestorId == d.InvestorId);
+            if (inv != null)
+            {
+                var invUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == inv.OwnerUserId);
+                if (invUser != null)
+                {
+                    investorName = $"{invUser.FirstName} {invUser.LastName}".Trim();
+                    investorEmail = invUser.Email ?? "";
+                }
+                else if (!string.IsNullOrEmpty(inv.LegalBusinessName))
+                {
+                    investorName = inv.LegalBusinessName;
+                }
+            }
+
             list.Add(new InvestorDocumentDTO
             {
                 id = d.Id,
                 investor_id = d.InvestorId,
+                investor_name = string.IsNullOrWhiteSpace(investorName) ? "Investor Profile" : investorName,
+                investor_email = investorEmail,
                 title = d.Title ?? string.Empty,
                 type = d.DocumentType ?? "PDF",
                 size = d.Size.HasValue ? $"{d.Size:F1} MB" : "0.2 MB",
@@ -94,10 +113,29 @@ public class InvestorDocumentService : IInvestorDocumentService
             var userName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "System Admin";
             if (string.IsNullOrEmpty(userName)) userName = "System Admin";
 
+            string investorName = "Investor Profile";
+            string investorEmail = "";
+            var inv = await _context.Investors.FirstOrDefaultAsync(i => i.InvestorId == d.InvestorId);
+            if (inv != null)
+            {
+                var invUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == inv.OwnerUserId);
+                if (invUser != null)
+                {
+                    investorName = $"{invUser.FirstName} {invUser.LastName}".Trim();
+                    investorEmail = invUser.Email ?? "";
+                }
+                else if (!string.IsNullOrEmpty(inv.LegalBusinessName))
+                {
+                    investorName = inv.LegalBusinessName;
+                }
+            }
+
             list.Add(new InvestorDocumentDTO
             {
                 id = d.Id,
                 investor_id = d.InvestorId,
+                investor_name = string.IsNullOrWhiteSpace(investorName) ? "Investor Profile" : investorName,
+                investor_email = investorEmail,
                 title = d.Title ?? string.Empty,
                 type = d.DocumentType ?? "PDF",
                 size = d.Size.HasValue ? $"{d.Size:F1} MB" : "0.2 MB",
