@@ -178,7 +178,7 @@ namespace IMS.API.Controllers
                     {
                         return Unauthorized(new
                         {
-                            Message = "Your account is inactive. Please contact support."
+                            Message = "Your account is inactive. Please check with Investee to access the portal."
                         });
                     }
 
@@ -391,7 +391,7 @@ namespace IMS.API.Controllers
 
             if (!user.IsActive)
             {
-                return Unauthorized(new { Message = "Your account is inactive. Please contact support." });
+                return Unauthorized(new { Message = "Your account is inactive. Please check with Investee to access the portal." });
             }
 
             var otp = Random.Shared.Next(100000, 999999).ToString();
@@ -452,9 +452,13 @@ namespace IMS.API.Controllers
             }
 
             var user = await _userManager!.FindByEmailAsync(model.Email);
-            if (user == null || !user.IsActive)
+            if (user == null)
             {
-                return Unauthorized(new { Message = "User status invalid." });
+                return Unauthorized(new { Message = "Invalid Credentials" });
+            }
+            if (!user.IsActive)
+            {
+                return Unauthorized(new { Message = "Your account is inactive. Please check with Investee to access the portal." });
             }
 
             var roles = await _userManager.GetRolesAsync(user);

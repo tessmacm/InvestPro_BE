@@ -220,20 +220,9 @@ namespace IMS.API.Controllers.Admin
         }
 
         [HttpDelete("{Id}")]
-        public async Task<IActionResult> DeleteInvestorProfile(int Id)
+        public IActionResult DeleteInvestorProfile(int Id)
         {
-            var result = await _investorService.DeleteInvestorProfileAsync(Id);
-
-            if (result)
-                return Ok(new 
-                { 
-                    Message = "Admin user deleted successfully." 
-                });
-
-            else if (result == false)
-                return BadRequest(new { Message = "Failed to delete admin user." });
-            else
-                return NotFound(new { Message = "Admin user not found." });
+            return BadRequest(new { Message = "Investors cannot be deleted. They can only be inactivated." });
         }
 
         // POST: api/admin/investors/bulk-import
