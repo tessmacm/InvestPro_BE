@@ -99,7 +99,7 @@ public class InvestorManagementService : IInvestorManagementService
         return results.Select(r => new InvestorSummaryDTO
         {
             id = r.Investor.InvestorId ?? 0,
-            name = r.User != null ? $"{r.User.FirstName} {r.User.LastName}".Trim() : (r.Investor.LegalBusinessName ?? "Investor"),
+            name = r.User != null ? (r.User.LastName == "User" || string.IsNullOrWhiteSpace(r.User.LastName) ? r.User.FirstName : $"{r.User.FirstName} {r.User.LastName}".Trim()) : (r.Investor.LegalBusinessName ?? "Investor"),
             email = r.User?.Email ?? "",
             mobile = r.User?.PhoneNumber ?? "",
             type = r.InvestorTypeName ?? "Individual",
@@ -137,7 +137,7 @@ public class InvestorManagementService : IInvestorManagementService
         return new InvestorDetailsDTO
         {
             id = investor.InvestorId ?? 0,
-            name = user != null ? $"{user.FirstName} {user.LastName}".Trim() : (investor.LegalBusinessName ?? "Investor"),
+            name = user != null ? (user.LastName == "User" || string.IsNullOrWhiteSpace(user.LastName) ? user.FirstName : $"{user.FirstName} {user.LastName}".Trim()) : (investor.LegalBusinessName ?? "Investor"),
             email = user?.Email ?? "",
             mobile = user?.PhoneNumber ?? "",
             type = (int)(investor.InvestorTypeId ?? 1),
@@ -166,9 +166,9 @@ public class InvestorManagementService : IInvestorManagementService
 
     public async Task<InvestorRegistrationResponse> RegisterAndCreateInvestorAsync(RegisterInvestorDTO dto)
     {
-        var names = (dto.name ?? "").Split(' ');
+        var names = (dto.name ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var firstName = names.FirstOrDefault() ?? "Investor";
-        var lastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "User";
+        var lastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "";
 
         // Step 1: Check if user or investor already exists
         ApplicationUser identityUser;
