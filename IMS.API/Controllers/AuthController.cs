@@ -231,7 +231,7 @@ namespace IMS.API.Controllers
 
                         //Step 5: Finally write the token as response with OK() using the new required shape.
                         var tokenString = new JwtSecurityTokenHandler().WriteToken(jwt);
-                        var fullName = $"{user.FirstName} {user.LastName}".Trim();
+                        var fullName = user.LastName == "User" || string.IsNullOrWhiteSpace(user.LastName) ? user.FirstName : $"{user.FirstName} {user.LastName}".Trim();
                         if (string.IsNullOrWhiteSpace(fullName)) fullName = user.UserName ?? string.Empty;
 
                         return Ok(new

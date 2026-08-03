@@ -30,15 +30,15 @@ public class InvestorDocumentService : IInvestorDocumentService
             .ToListAsync();
 
         // Deduplicate agreement documents per investor: keep only the latest single agreement document per InvestorId
-        var agreementDocsPerInvestor = allDocs
+        var agreementDocIds = allDocs
             .Where(d => d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement")))
             .GroupBy(d => d.InvestorId)
-            .Select(g => g.First()) // latest one due to OrderByDescending(UploadedAt)
+            .Select(g => g.First().Id) // int primitive ID
             .ToHashSet();
 
         var docs = allDocs.Where(d => 
             !(d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement"))) ||
-            agreementDocsPerInvestor.Contains(d)
+            agreementDocIds.Contains(d.Id)
         ).ToList();
 
         var list = new List<InvestorDocumentDTO>();
@@ -118,12 +118,14 @@ public class InvestorDocumentService : IInvestorDocumentService
             .OrderByDescending(d => d.UploadedAt)
             .ToListAsync();
 
-        var latestAgreement = allDocs
-            .FirstOrDefault(d => d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement")));
+        var latestAgreementId = allDocs
+            .Where(d => d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement")))
+            .Select(d => d.Id)
+            .FirstOrDefault();
 
         var docs = allDocs.Where(d => 
             !(d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement"))) ||
-            (latestAgreement != null && d.Id == latestAgreement.Id)
+            (latestAgreementId != 0 && d.Id == latestAgreementId)
         ).ToList();
 
         var list = new List<InvestorDocumentDTO>();
