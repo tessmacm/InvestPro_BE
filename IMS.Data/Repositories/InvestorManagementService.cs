@@ -117,8 +117,8 @@ public class InvestorManagementService : IInvestorManagementService
             bank = r.Investor.BankName ?? "—",
             acNumber = r.Investor.BankAccountNo ?? "—",
             sortCode = r.Investor.SortCode ?? "—",
-            witness = r.Investor.Witness ?? "Accredited",
-            address = r.Investor.Address ?? "—",
+            witness = string.IsNullOrWhiteSpace(r.Investor.Witness) ? null : r.Investor.Witness,
+            address = string.IsNullOrWhiteSpace(r.Investor.Address) ? null : r.Investor.Address,
             projectId = r.Investor.ProjectId ?? 1,
             notes = r.Investor.Notes ?? "—"
         }).ToList();
