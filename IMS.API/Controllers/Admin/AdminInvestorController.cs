@@ -187,18 +187,18 @@ namespace IMS.API.Controllers.Admin
             {
                 Directory.CreateDirectory(documentsFolder);
             }
+            if (!Directory.Exists(templatesFolder))
+            {
+                Directory.CreateDirectory(templatesFolder);
+            }
 
             var physicalPath = Path.Combine(documentsFolder, $"agreement_{investorId}.pdf");
             var templatePath = Path.Combine(templatesFolder, "agreement_template.pdf");
-            if (!System.IO.File.Exists(templatePath))
-            {
-                templatePath = @"c:\Users\shaik\WORK\ANTIGRAVITY_WORKSPACES\InvestProApp\Docs\Fareed Chunara - 2nd Agreement - V1.0.pdf";
-            }
+            var docsFallbackPath = @"c:\Users\shaik\WORK\ANTIGRAVITY_WORKSPACES\InvestProApp\Docs\Fareed Chunara - 2nd Agreement - V1.0.pdf";
 
-            // Copy authentic template to investor documents path if not existing
-            if (!System.IO.File.Exists(physicalPath) && System.IO.File.Exists(templatePath))
+            if (!System.IO.File.Exists(templatePath) && System.IO.File.Exists(docsFallbackPath))
             {
-                System.IO.File.Copy(templatePath, physicalPath, overwrite: true);
+                System.IO.File.Copy(docsFallbackPath, templatePath, overwrite: true);
             }
 
             byte[] fileBytes;
@@ -209,6 +209,10 @@ namespace IMS.API.Controllers.Admin
             else if (System.IO.File.Exists(templatePath))
             {
                 fileBytes = await System.IO.File.ReadAllBytesAsync(templatePath);
+            }
+            else if (System.IO.File.Exists(docsFallbackPath))
+            {
+                fileBytes = await System.IO.File.ReadAllBytesAsync(docsFallbackPath);
             }
             else
             {
