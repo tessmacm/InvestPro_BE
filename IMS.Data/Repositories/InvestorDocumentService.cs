@@ -25,15 +25,27 @@ public class InvestorDocumentService : IInvestorDocumentService
 
     public async Task<IEnumerable<InvestorDocumentDTO>> GetAllInvestorDocs()
     {
-        var docs = await _context.InvestorDocuments
+        var allDocs = await _context.InvestorDocuments
             .OrderByDescending(d => d.UploadedAt)
             .ToListAsync();
+
+        // Deduplicate agreement documents per investor: keep only the latest single agreement document per InvestorId
+        var agreementDocsPerInvestor = allDocs
+            .Where(d => d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement")))
+            .GroupBy(d => d.InvestorId)
+            .Select(g => g.First()) // latest one due to OrderByDescending(UploadedAt)
+            .ToHashSet();
+
+        var docs = allDocs.Where(d => 
+            !(d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement"))) ||
+            agreementDocsPerInvestor.Contains(d)
+        ).ToList();
 
         var list = new List<InvestorDocumentDTO>();
         foreach (var d in docs)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == d.UploadedById);
-            var userName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "System Admin";
+            var userName = user != null ? (user.LastName == "User" || string.IsNullOrWhiteSpace(user.LastName) ? user.FirstName : $"{user.FirstName} {user.LastName}".Trim()) : "System Admin";
             if (string.IsNullOrEmpty(userName)) userName = "System Admin";
 
             string investorName = "Investor Profile";
@@ -44,7 +56,7 @@ public class InvestorDocumentService : IInvestorDocumentService
                 var invUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == inv.OwnerUserId);
                 if (invUser != null)
                 {
-                    investorName = $"{invUser.FirstName} {invUser.LastName}".Trim();
+                    investorName = invUser.LastName == "User" || string.IsNullOrWhiteSpace(invUser.LastName) ? invUser.FirstName : $"{invUser.FirstName} {invUser.LastName}".Trim();
                     investorEmail = invUser.Email ?? "";
                 }
                 else if (!string.IsNullOrEmpty(inv.LegalBusinessName))
@@ -101,16 +113,24 @@ public class InvestorDocumentService : IInvestorDocumentService
             investorId = await GetInvestorIdByUserIdOrEmailAsync(userId, email);
         }
 
-        var docs = await _context.InvestorDocuments
+        var allDocs = await _context.InvestorDocuments
             .Where(d => d.InvestorId == investorId)
             .OrderByDescending(d => d.UploadedAt)
             .ToListAsync();
+
+        var latestAgreement = allDocs
+            .FirstOrDefault(d => d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement")));
+
+        var docs = allDocs.Where(d => 
+            !(d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement"))) ||
+            (latestAgreement != null && d.Id == latestAgreement.Id)
+        ).ToList();
 
         var list = new List<InvestorDocumentDTO>();
         foreach (var d in docs)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == d.UploadedById);
-            var userName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "System Admin";
+            var userName = user != null ? (user.LastName == "User" || string.IsNullOrWhiteSpace(user.LastName) ? user.FirstName : $"{user.FirstName} {user.LastName}".Trim()) : "System Admin";
             if (string.IsNullOrEmpty(userName)) userName = "System Admin";
 
             string investorName = "Investor Profile";
@@ -121,7 +141,7 @@ public class InvestorDocumentService : IInvestorDocumentService
                 var invUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == inv.OwnerUserId);
                 if (invUser != null)
                 {
-                    investorName = $"{invUser.FirstName} {invUser.LastName}".Trim();
+                    investorName = invUser.LastName == "User" || string.IsNullOrWhiteSpace(invUser.LastName) ? invUser.FirstName : $"{invUser.FirstName} {invUser.LastName}".Trim();
                     investorEmail = invUser.Email ?? "";
                 }
                 else if (!string.IsNullOrEmpty(inv.LegalBusinessName))
