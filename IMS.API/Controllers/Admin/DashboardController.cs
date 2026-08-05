@@ -1,3 +1,4 @@
+using IMS.Core.Interfaces;
 using IMS.Persistance.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,36 +16,33 @@ namespace IMS.API.Controllers.Admin;
 public class DashboardController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IInvestorDocumentService _documentService;
 
-    public DashboardController(ApplicationDbContext context)
+    public DashboardController(ApplicationDbContext context, IInvestorDocumentService documentService)
     {
         _context = context;
+        _documentService = documentService;
     }
 
     [HttpGet("stats")]
     public async Task<IActionResult> GetDashboardStats()
     {
-        var userRole = User.FindFirstValue(ClaimTypes.Role) ?? Request.Headers["x-user-role"].ToString();
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? Request.Headers["x-user-id"].ToString();
-        var userEmail = User.FindFirstValue(ClaimTypes.Email);
+        // Execute database reads concurrently with Task.WhenAll and AsNoTracking for ultra-fast response
+        var investorsTask = _context.Investors.AsNoTracking().ToListAsync();
+        var paymentsTask = _context.Payments.AsNoTracking().ToListAsync();
+        var documentsTask = _documentService.GetAllInvestorDocs();
+        var roiContractsTask = _context.RoiContracts.AsNoTracking().ToListAsync();
+        var projectsTask = _context.Projects.AsNoTracking().ToListAsync();
 
-        var isInvestorUser = string.Equals(userRole, "investor", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(userRole, "client", StringComparison.OrdinalIgnoreCase);
-
-        // Fetch datasets with AsNoTracking for maximum DB read performance
-        var investors = await _context.Investors.AsNoTracking().ToListAsync();
-        var payments = await _context.Payments.AsNoTracking().ToListAsync();
-        var documents = await _context.InvestorDocuments.AsNoTracking().ToListAsync();
-        var roiContracts = await _context.RoiContracts.AsNoTracking().ToListAsync();
-        var projects = await _context.Projects.AsNoTracking().ToListAsync();
+        await Task.WhenAll(investorsTask, paymentsTask, documentsTask, roiContractsTask, projectsTask);
 
         return Ok(new
         {
-            investors,
-            payments,
-            documents,
-            roiContracts,
-            projects
+            investors = await investorsTask,
+            payments = await paymentsTask,
+            documents = await documentsTask,
+            roiContracts = await roiContractsTask,
+            projects = await projectsTask
         });
     }
 }
