@@ -255,6 +255,33 @@ using (var scope = app.Services.CreateScope())
                 BEGIN
                     ALTER TABLE Investors ADD ProjectId INT NULL;
                 END
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Investors' AND COLUMN_NAME = 'Duration')
+                BEGIN
+                    ALTER TABLE Investors ADD Duration NVARCHAR(100) NULL DEFAULT '12 Months';
+                END
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Investors' AND COLUMN_NAME = 'CreatedAt')
+                BEGIN
+                    ALTER TABLE Investors ADD CreatedAt DATETIME2 NULL DEFAULT GETUTCDATE();
+                END
+                IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'SystemNotifications')
+                BEGIN
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SystemNotifications' AND COLUMN_NAME = 'SenderUserId')
+                    BEGIN
+                        ALTER TABLE SystemNotifications ADD SenderUserId NVARCHAR(450) NULL;
+                    END
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SystemNotifications' AND COLUMN_NAME = 'SenderName')
+                    BEGIN
+                        ALTER TABLE SystemNotifications ADD SenderName NVARCHAR(255) NULL;
+                    END
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SystemNotifications' AND COLUMN_NAME = 'SenderRole')
+                    BEGIN
+                        ALTER TABLE SystemNotifications ADD SenderRole NVARCHAR(100) NULL;
+                    END
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SystemNotifications' AND COLUMN_NAME = 'ReadAt')
+                    BEGIN
+                        ALTER TABLE SystemNotifications ADD ReadAt DATETIME2 NULL;
+                    END
+                END
             END
         ");
 

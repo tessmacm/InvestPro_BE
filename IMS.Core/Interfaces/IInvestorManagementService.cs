@@ -27,7 +27,6 @@ public class InvestorSummaryDTO
     public string authSingerName { get; set; } = string.Empty;
     public decimal amount { get; set; }
     public string reg_number { get; set; } = string.Empty;
-    public string accreditation { get; set; } = string.Empty;
     public string status { get; set; } = string.Empty;
     public string date_of_onboarding { get; set; } = string.Empty;
     public int? min_roi_id { get; set; }
@@ -40,6 +39,7 @@ public class InvestorSummaryDTO
     public string? witness { get; set; }
     public string? address { get; set; }
     public int? projectId { get; set; }
+    public string? duration { get; set; }
     public string? notes { get; set; }
 }
 
@@ -54,7 +54,6 @@ public class InvestorDetailsDTO
     public string authSingerName { get; set; } = string.Empty;
     public decimal amount { get; set; }
     public string reg_number { get; set; } = string.Empty;
-    public string accreditation { get; set; } = string.Empty;
     public string status { get; set; } = string.Empty;
     public string date_of_onboarding { get; set; } = string.Empty;
     public int? min_roi_id { get; set; }
@@ -67,6 +66,7 @@ public class InvestorDetailsDTO
     public string? witness { get; set; }
     public string? address { get; set; }
     public int? projectId { get; set; }
+    public string? duration { get; set; }
     public string? notes { get; set; }
 }
 public class CreateInvestorProfileDTO
@@ -90,7 +90,6 @@ public class UpdateInvestorDetailsDTO
     public string? authSingerName { get; set; }
     public decimal? amount { get; set; }
     public string? reg_number { get; set; }
-    public string? accreditation { get; set; }
     public string? status { get; set; }
     public string? date_of_onboarding { get; set; }
     public int? min_roi_id { get; set; }
@@ -106,6 +105,7 @@ public class UpdateInvestorDetailsDTO
     public string? witness { get; set; }
     public string? address { get; set; }
     public int? projectId { get; set; }
+    public string? duration { get; set; }
     public string? notes { get; set; }
 }
 public class RegisterInvestorDTO
@@ -120,7 +120,6 @@ public class RegisterInvestorDTO
     public string? authSingerName { get; set; }
     public decimal? amount { get; set; }
     public string? reg_number { get; set; } 
-    public string? accreditation { get; set; }
     public string? status { get; set; } 
     public string? date_of_onboarding { get; set; } 
     public int? min_RoiRangeId { get; set; }
@@ -136,6 +135,7 @@ public class RegisterInvestorDTO
     public string? witness { get; set; }
     public string? address { get; set; }
     public int? projectId { get; set; }
+    public string? duration { get; set; }
     public string? notes { get; set; } 
 }
 public class InvestorRegistrationResponse

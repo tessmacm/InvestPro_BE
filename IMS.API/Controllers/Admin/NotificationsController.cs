@@ -25,33 +25,57 @@ public class NotificationsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? investorId)
     {
+        var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var isInvestor = User.IsInRole("investor") || User.IsInRole("Investor");
+
         var query = _context.SystemNotifications.Include(n => n.InvestorNav).AsQueryable();
 
-        if (User.IsInRole("investor") || User.IsInRole("Investor"))
+        if (isInvestor)
         {
+            var userInvestorIds = new List<int>();
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                userInvestorIds = await _context.Investors
+                    .Where(i => i.OwnerUserId == currentUserId && i.InvestorId.HasValue)
+                    .Select(i => i.InvestorId!.Value)
+                    .ToListAsync();
+            }
+
             var claim = User.FindFirst("investorId");
-            if (claim != null && int.TryParse(claim.Value, out var id))
+            if (claim != null && int.TryParse(claim.Value, out var singleId) && !userInvestorIds.Contains(singleId))
             {
-                query = query.Where(n => n.InvestorId == id || 
-                                         (n.InvestorId == null && n.TargetInvestorIds == null) ||
-                                         n.TargetInvestorIds.Contains("," + id + ","));
+                userInvestorIds.Add(singleId);
             }
-            else
-            {
-                return Ok(new object[0]);
-            }
+
+            // An investor sees:
+            // 1. Notifications sent TO them (InvestorId in userInvestorIds or targetInvestorIds contains their ID or broadcast to all)
+            // 2. Notifications sent BY them (SenderUserId == currentUserId)
+            query = query.Where(n => 
+                (n.SenderUserId == currentUserId) ||
+                (n.InvestorId.HasValue && userInvestorIds.Contains(n.InvestorId.Value)) ||
+                (n.InvestorId == null && string.IsNullOrEmpty(n.TargetInvestorIds) && n.SenderRole != "investor") ||
+                (!string.IsNullOrEmpty(n.TargetInvestorIds) && userInvestorIds.Any(id => n.TargetInvestorIds.Contains("," + id + ",") || n.TargetInvestorIds.Contains(id.ToString())))
+            );
         }
         else if (investorId.HasValue)
         {
             query = query.Where(n => n.InvestorId == investorId || n.TargetInvestorIds.Contains("," + investorId + ","));
         }
 
-        var list = await query.ToListAsync();
-        var allInvestors = await _context.Investors.ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
+        var list = await query.OrderByDescending(n => n.CreatedAt).ToListAsync();
+
+        var allInvestors = await _context.Investors
+            .Include(i => i.OwnerUserId)
+            .ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
+        var allUsers = await _context.Users.ToDictionaryAsync(u => u.Id, u => u);
 
         return Ok(list.Select(n => {
-            string resolvedTo = "All Investors";
-            if (n.InvestorId.HasValue)
+            string resolvedTo = "Management";
+            if (n.SenderRole == "investor")
+            {
+                resolvedTo = "Admin & Manager";
+            }
+            else if (n.InvestorId.HasValue)
             {
                 resolvedTo = allInvestors.TryGetValue(n.InvestorId.Value, out var name) ? name : "Investor";
             }
@@ -64,18 +88,26 @@ public class NotificationsController : ControllerBase
                 var names = targetIds.Select(id => allInvestors.TryGetValue(id, out var name) ? name : $"Inv#{id}");
                 resolvedTo = string.Join(", ", names);
             }
+            else
+            {
+                resolvedTo = "All Investors";
+            }
 
             return new {
                 id = n.Id,
                 title = n.Title,
                 message = n.Message,
-                eventType = n.EventType,
                 isRead = n.IsRead,
+                readAt = n.ReadAt,
                 createdAt = n.CreatedAt,
+                senderUserId = n.SenderUserId,
+                senderName = n.SenderName ?? (n.SenderRole == "investor" ? "Investor" : "Management"),
+                senderRole = n.SenderRole ?? "admin",
+                isSentByMe = !string.IsNullOrEmpty(currentUserId) && n.SenderUserId == currentUserId,
                 investorId = n.InvestorId,
                 targetInvestorIds = n.TargetInvestorIds,
-                investorName = resolvedTo,
-                status = n.Status
+                recipientName = resolvedTo,
+                investorName = resolvedTo
             };
         }));
     }
@@ -86,41 +118,70 @@ public class NotificationsController : ControllerBase
         var n = await _context.SystemNotifications.Include(n => n.InvestorNav).FirstOrDefaultAsync(x => x.Id == id);
         if (n == null) return NotFound();
 
+        var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var allInvestors = await _context.Investors.ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
-        string resolvedTo = "All Investors";
-        if (n.InvestorId.HasValue)
-        {
-            resolvedTo = allInvestors.TryGetValue(n.InvestorId.Value, out var name) ? name : "Investor";
-        }
-        else if (!string.IsNullOrEmpty(n.TargetInvestorIds))
-        {
-            var targetIds = n.TargetInvestorIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                               .Select(s => int.TryParse(s, out var id) ? id : 0)
-                                               .Where(id => id > 0)
-                                               .ToList();
-            var names = targetIds.Select(tid => allInvestors.TryGetValue(tid, out var name) ? name : $"Inv#{tid}");
-            resolvedTo = string.Join(", ", names);
-        }
+        
+        string resolvedTo = n.SenderRole == "investor" ? "Admin & Manager" : (n.InvestorId.HasValue && allInvestors.TryGetValue(n.InvestorId.Value, out var name) ? name : "All Investors");
 
         return Ok(new {
             id = n.Id,
             title = n.Title,
             message = n.Message,
-            eventType = n.EventType,
             isRead = n.IsRead,
+            readAt = n.ReadAt,
             createdAt = n.CreatedAt,
+            senderUserId = n.SenderUserId,
+            senderName = n.SenderName ?? "Management",
+            senderRole = n.SenderRole ?? "admin",
+            isSentByMe = !string.IsNullOrEmpty(currentUserId) && n.SenderUserId == currentUserId,
             investorId = n.InvestorId,
             targetInvestorIds = n.TargetInvestorIds,
-            investorName = resolvedTo,
-            status = n.Status
+            recipientName = resolvedTo,
+            investorName = resolvedTo
         });
     }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SystemNotification model)
     {
+        var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var isInvestor = User.IsInRole("investor") || User.IsInRole("Investor");
+
         model.CreatedAt = DateTime.UtcNow;
         model.IsRead = false;
+        model.ReadAt = null;
+        model.SenderUserId = currentUserId;
+
+        if (isInvestor)
+        {
+            model.SenderRole = "investor";
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                var user = await _context.Users.FindAsync(currentUserId);
+                model.SenderName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "Investor";
+            }
+            else
+            {
+                model.SenderName = "Investor";
+            }
+            // By default sent to Admin and Manager (InvestorId = null, target = null)
+            model.InvestorId = null;
+            model.TargetInvestorIds = null;
+        }
+        else
+        {
+            model.SenderRole = User.IsInRole("manager") ? "manager" : "admin";
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                var user = await _context.Users.FindAsync(currentUserId);
+                model.SenderName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "Management";
+            }
+            else
+            {
+                model.SenderName = "Management";
+            }
+        }
+
         _context.SystemNotifications.Add(model);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = model.Id }, model);
@@ -134,11 +195,11 @@ public class NotificationsController : ControllerBase
 
         n.Title = model.Title;
         n.Message = model.Message;
-        n.EventType = model.EventType;
-        n.IsRead = model.IsRead;
-        n.Status = model.Status;
-        n.InvestorId = model.InvestorId;
-        n.TargetInvestorIds = model.TargetInvestorIds;
+        if (!User.IsInRole("investor") && !User.IsInRole("Investor"))
+        {
+            n.InvestorId = model.InvestorId;
+            n.TargetInvestorIds = model.TargetInvestorIds;
+        }
 
         await _context.SaveChangesAsync();
         return Ok(n);
@@ -151,7 +212,8 @@ public class NotificationsController : ControllerBase
         if (n == null) return NotFound();
 
         n.IsRead = true;
+        n.ReadAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
-        return Ok(new { success = true });
+        return Ok(new { success = true, isRead = n.IsRead, readAt = n.ReadAt });
     }
 }

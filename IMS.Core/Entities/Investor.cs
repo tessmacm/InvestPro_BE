@@ -41,6 +41,9 @@ public class Investor
     public InvestorType? InvestorTypeNav { get; set; }
     public bool IsAgreedToTerms { get; set; } = false;
 
+    public string? Duration { get; set; } // e.g. "12 Months", "2 Years"
+    public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
+
     //public int? InvestmentInterestId { get; set; }
     //public InvestmentInterest? InvestmentInterestNav { get; set; }
 

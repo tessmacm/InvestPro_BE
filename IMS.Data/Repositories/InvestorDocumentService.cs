@@ -20,7 +20,7 @@ public class InvestorDocumentService : IInvestorDocumentService
 
     public async Task<IEnumerable<InvestorDocumentDTO>> GetAllInvestorDocs()
     {
-        var allDocs = await _context.InvestorDocuments
+        var docs = await _context.InvestorDocuments
             .AsNoTracking()
             .OrderByDescending(d => d.UploadedAt)
             .ToListAsync();
@@ -34,18 +34,6 @@ public class InvestorDocumentService : IInvestorDocumentService
             .AsNoTracking()
             .Where(i => i.InvestorId.HasValue)
             .ToDictionaryAsync(i => i.InvestorId!.Value, i => i);
-
-        // Deduplicate agreement documents per investor: keep only the latest single agreement document per InvestorId
-        var agreementDocIds = allDocs
-            .Where(d => d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement")))
-            .GroupBy(d => d.InvestorId)
-            .Select(g => g.First().Id)
-            .ToHashSet();
-
-        var docs = allDocs.Where(d => 
-            !(d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement"))) ||
-            agreementDocIds.Contains(d.Id)
-        ).ToList();
 
         var list = new List<InvestorDocumentDTO>();
         foreach (var d in docs)
@@ -113,14 +101,37 @@ public class InvestorDocumentService : IInvestorDocumentService
 
     public async Task<IEnumerable<InvestorDocumentDTO>> GetInvestorDocsByInvestorIdAsync(int investorId, string? userId = null, string? email = null)
     {
-        if (investorId == 0)
+        List<int> targetInvestorIds = new();
+
+        if (!string.IsNullOrEmpty(userId))
         {
-            investorId = await GetInvestorIdByUserIdOrEmailAsync(userId, email);
+            var ids = await _context.Investors.AsNoTracking()
+                .Where(i => i.OwnerUserId == userId && i.InvestorId.HasValue)
+                .Select(i => i.InvestorId!.Value)
+                .ToListAsync();
+            targetInvestorIds.AddRange(ids);
+        }
+        else if (!string.IsNullOrEmpty(email))
+        {
+            var userAcc = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email);
+            if (userAcc != null)
+            {
+                var ids = await _context.Investors.AsNoTracking()
+                    .Where(i => i.OwnerUserId == userAcc.Id && i.InvestorId.HasValue)
+                    .Select(i => i.InvestorId!.Value)
+                    .ToListAsync();
+                targetInvestorIds.AddRange(ids);
+            }
         }
 
-        var allDocs = await _context.InvestorDocuments
+        if (investorId > 0 && !targetInvestorIds.Contains(investorId))
+        {
+            targetInvestorIds.Add(investorId);
+        }
+
+        var docs = await _context.InvestorDocuments
             .AsNoTracking()
-            .Where(d => d.InvestorId == investorId)
+            .Where(d => targetInvestorIds.Contains(d.InvestorId))
             .OrderByDescending(d => d.UploadedAt)
             .ToListAsync();
 
@@ -132,16 +143,6 @@ public class InvestorDocumentService : IInvestorDocumentService
             .AsNoTracking()
             .Where(i => i.InvestorId.HasValue)
             .ToDictionaryAsync(i => i.InvestorId!.Value, i => i);
-
-        var latestAgreementId = allDocs
-            .Where(d => d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement")))
-            .Select(d => d.Id)
-            .FirstOrDefault();
-
-        var docs = allDocs.Where(d => 
-            !(d.DocumentType == "Agreement" || (d.Title != null && d.Title.Contains("Agreement"))) ||
-            (latestAgreementId != 0 && d.Id == latestAgreementId)
-        ).ToList();
 
         var list = new List<InvestorDocumentDTO>();
         foreach (var d in docs)

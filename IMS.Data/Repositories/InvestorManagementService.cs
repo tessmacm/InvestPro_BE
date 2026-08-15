@@ -87,6 +87,7 @@ public class InvestorManagementService : IInvestorManagementService
         var query = from inv in _context.Investors.AsNoTracking()
                     join user in _context.Users.AsNoTracking() on inv.OwnerUserId equals user.Id into userGroup
                     from user in userGroup.DefaultIfEmpty()
+                    orderby inv.InvestorId descending
                     select new
                     {
                         Investor = inv,
@@ -107,7 +108,6 @@ public class InvestorManagementService : IInvestorManagementService
             authSingerName = r.Investor.AuthorizedSignerName ?? "Accredited",
             amount = r.Investor.CapitalAmount ?? 0,
             reg_number = r.Investor.CompanyRegistrationNo ?? "—",
-            accreditation = r.Investor.AuthorizedSignerName ?? "Accredited",
             status = (r.User?.IsActive ?? true) ? "active" : "inactive",
             date_of_onboarding = r.Investor.DateOfBoarding.HasValue ? r.Investor.DateOfBoarding.Value.ToString("yyyy-MM-dd") : (r.User != null ? r.User.CreatedAt.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd")),
             min_roi_id = r.Investor.MinRoiRangeId,
@@ -120,6 +120,7 @@ public class InvestorManagementService : IInvestorManagementService
             witness = string.IsNullOrWhiteSpace(r.Investor.Witness) ? null : r.Investor.Witness,
             address = string.IsNullOrWhiteSpace(r.Investor.Address) ? null : r.Investor.Address,
             projectId = r.Investor.ProjectId ?? 1,
+            duration = r.Investor.Duration ?? "12 Months",
             notes = r.Investor.Notes ?? "—"
         }).ToList();
     }
@@ -142,10 +143,9 @@ public class InvestorManagementService : IInvestorManagementService
             mobile = user?.PhoneNumber ?? "",
             type = (int)(investor.InvestorTypeId ?? 1),
             organization = investor.LegalBusinessName ?? "—",
-            authSingerName = investor.AuthorizedSignerName ?? "Accredited",
+            authSingerName = investor.AuthorizedSignerName ?? "—",
             amount = investor.CapitalAmount ?? 0,
             reg_number = investor.CompanyRegistrationNo ?? "—",
-            accreditation = investor.AuthorizedSignerName ?? "Accredited",
             status = (user?.IsActive ?? true) ? "active" : "inactive",
             date_of_onboarding = investor.DateOfBoarding.HasValue 
                 ? investor.DateOfBoarding.Value.ToString("yyyy-MM-dd") 
@@ -160,6 +160,7 @@ public class InvestorManagementService : IInvestorManagementService
             witness = investor.Witness,
             address = investor.Address,
             projectId = investor.ProjectId ?? 1,
+            duration = investor.Duration ?? "12 Months",
             notes = investor.Notes
         };
     }
@@ -170,29 +171,19 @@ public class InvestorManagementService : IInvestorManagementService
         var firstName = names.FirstOrDefault() ?? "Investor";
         var lastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "";
 
-        // Step 1: Check if user or investor already exists
+        // Step 1: Check if user already exists
         ApplicationUser identityUser;
         var existingUser = await _userManager.FindByEmailAsync(dto.email!);
 
         if (existingUser != null)
         {
-            // Check if user already has an active Investor entity profile linked
-            var existingInvestor = await _context.Investors
-                .FirstOrDefaultAsync(i => i.OwnerUserId == existingUser.Id || (existingUser.InvestorId != null && i.InvestorId == existingUser.InvestorId));
-
-            if (existingInvestor != null)
-            {
-                return new InvestorRegistrationResponse
-                {
-                    IsSuccess = false,
-                    ErrorMessage = $"An investor profile for email '{dto.email}' already exists in the system."
-                };
-            }
-
-            // Existing user in AspNetUsers has no Investor entity profile -> Re-use existing user account
+            // Existing user account found -> Attach additional or new investment profile to this existing user!
             identityUser = existingUser;
-            identityUser.FirstName = firstName;
-            identityUser.LastName = lastName;
+            if (!string.IsNullOrEmpty(firstName) && firstName != "Investor")
+            {
+                identityUser.FirstName = firstName;
+                identityUser.LastName = lastName;
+            }
             identityUser.PhoneNumber = string.IsNullOrEmpty(dto.mobile) ? identityUser.PhoneNumber : dto.mobile;
             identityUser.IsActive = dto.status != "inactive";
             await _userManager.UpdateAsync(identityUser);
@@ -223,7 +214,7 @@ public class InvestorManagementService : IInvestorManagementService
             await _userManager.AddToRoleAsync(identityUser, "investor");
         }
 
-        // Step 2: Create Investor entity
+        // Step 2: Create Investor entity (represents this specific investment contract)
         var newInvestor = new Investor
         {
             OwnerUserId = identityUser.Id,
@@ -231,7 +222,7 @@ public class InvestorManagementService : IInvestorManagementService
             TaxIdOrSSN = "-",
             LegalBusinessName = string.IsNullOrEmpty(dto.organization) ? "—" : dto.organization,
             CompanyRegistrationNo = string.IsNullOrEmpty(dto.reg_number) ? "—" : dto.reg_number,
-            AuthorizedSignerName = string.IsNullOrEmpty(dto.accreditation) ? "Accredited" : dto.accreditation,
+            AuthorizedSignerName = "—",
             CapitalAmount = dto.amount ?? 0,
             Notes = string.IsNullOrEmpty(dto.notes) ? "Investor Registration" : dto.notes,
             InvestorTypeId = Math.Clamp(dto.type ?? 1, 1, 2),
@@ -245,22 +236,28 @@ public class InvestorManagementService : IInvestorManagementService
             SortCode = !string.IsNullOrEmpty(dto.sortCode) ? dto.sortCode : dto.soreCode,
             Witness = dto.witness,
             Address = dto.address,
-            ProjectId = dto.projectId ?? 1
+            ProjectId = dto.projectId ?? 1,
+            Duration = !string.IsNullOrEmpty(dto.duration) ? dto.duration : "12 Months",
+            CreatedAt = DateTime.UtcNow
         };
 
         // Save via Unit of Work
         await _context.Investors.AddAsync(newInvestor);
         await _unitOfWork.CompleteAsync();
 
-        // Auto-generate payment schedule
+        // Auto-generate payment schedule for this investment
         await GeneratePaymentsForInvestorAsync(newInvestor);
         await _unitOfWork.CompleteAsync();
 
-        // Step 3b: Auto-attach Investment Agreement document template if not existing
+        // Project lookup for agreement title
+        var proj = await _context.Projects.FindAsync(newInvestor.ProjectId ?? 1);
+        var projectTitle = proj?.Title ?? "Current Operations";
+
+        // Step 3b: Auto-attach Investment Agreement document for this specific investment
         var agreementDoc = new InvestorDocument
         {
             InvestorId = newInvestor.InvestorId ?? 0,
-            Title = $"Investment Agreement - {identityUser.FirstName} {identityUser.LastName} (Current Operations).pdf",
+            Title = $"Investment Agreement - {identityUser.FirstName} {identityUser.LastName} ({projectTitle} - #{newInvestor.InvestorId}).pdf",
             DocumentType = "Agreement",
             Size = 1.2m,
             StorageUrl = $"/documents/agreement_{newInvestor.InvestorId}.pdf",
@@ -271,7 +268,7 @@ public class InvestorManagementService : IInvestorManagementService
         await _context.InvestorDocuments.AddAsync(agreementDoc);
         await _unitOfWork.CompleteAsync();
 
-        // Step 3: Backward link the InvestorId reference
+        // Step 3: Link latest InvestorId reference on user
         identityUser.InvestorId = newInvestor.InvestorId;
         await _userManager.UpdateAsync(identityUser);
 
@@ -300,7 +297,6 @@ public class InvestorManagementService : IInvestorManagementService
         investor.LegalBusinessName = dto.organization ?? "—";
         investor.CompanyRegistrationNo = dto.reg_number ?? "—";
         investor.CapitalAmount = dto.amount;
-        investor.AuthorizedSignerName = dto.accreditation ?? "Accredited";
         investor.TaxIdOrSSN = "—";
         investor.Notes = dto.notes ?? "Basic";
         investor.InvestorTypeId = dto.type;
@@ -315,8 +311,9 @@ public class InvestorManagementService : IInvestorManagementService
         if (!string.IsNullOrEmpty(dto.witness)) investor.Witness = dto.witness;
         if (!string.IsNullOrEmpty(dto.address)) investor.Address = dto.address;
         if (dto.projectId.HasValue) investor.ProjectId = dto.projectId;
+        if (!string.IsNullOrEmpty(dto.duration)) investor.Duration = dto.duration;
 
-        // Recalculate pending payments
+        // Recalculate pending payments for this investment
         var pendingPayments = await _context.Payments
             .Where(p => p.InvestorId == profileId && !p.IsSent && !p.IsReceived)
             .ToListAsync();
@@ -326,6 +323,7 @@ public class InvestorManagementService : IInvestorManagementService
         }
         await GeneratePaymentsForInvestorAsync(investor);
 
+        // Sync shared user and bank details across ALL investments belonging to this user
         if (!string.IsNullOrEmpty(investor.OwnerUserId))
         {
             var user = await _userManager.FindByIdAsync(investor.OwnerUserId);
@@ -348,6 +346,21 @@ public class InvestorManagementService : IInvestorManagementService
 
                 await _userManager.UpdateAsync(user);
             }
+
+            // Propagate common personal & bank fields to all other investment records under the same user
+            var allUserInvestments = await _context.Investors
+                .Where(i => i.OwnerUserId == investor.OwnerUserId && i.InvestorId != profileId)
+                .ToListAsync();
+
+            foreach (var otherInv in allUserInvestments)
+            {
+                if (!string.IsNullOrEmpty(dto.address)) otherInv.Address = dto.address;
+                if (!string.IsNullOrEmpty(dto.witness)) otherInv.Witness = dto.witness;
+                if (!string.IsNullOrEmpty(dto.bank)) otherInv.BankName = dto.bank;
+                if (!string.IsNullOrEmpty(dto.acNumber)) otherInv.BankAccountNo = dto.acNumber;
+                var sort = !string.IsNullOrEmpty(dto.sortCode) ? dto.sortCode : dto.soreCode;
+                if (!string.IsNullOrEmpty(sort)) otherInv.SortCode = sort;
+            }
         }
 
         // Reset Agreement Document to Pending Signature so investor can re-sign updated contract
@@ -357,7 +370,9 @@ public class InvestorManagementService : IInvestorManagementService
         if (agreementDoc != null)
         {
             var fullName = !string.IsNullOrWhiteSpace(dto.name) ? dto.name : "Investor";
-            agreementDoc.Title = $"Investment Agreement - {fullName} (Current Operations).pdf";
+            var proj = await _context.Projects.FindAsync(investor.ProjectId ?? 1);
+            var projectTitle = proj?.Title ?? "Current Operations";
+            agreementDoc.Title = $"Investment Agreement - {fullName} ({projectTitle} - #{investor.InvestorId}).pdf";
             agreementDoc.Status = "Pending Signature";
             agreementDoc.SignatureData = null;
             agreementDoc.SignedAt = null;
