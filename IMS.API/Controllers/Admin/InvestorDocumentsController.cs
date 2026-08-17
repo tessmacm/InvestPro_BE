@@ -183,14 +183,19 @@ namespace IMS.API.Controllers.Admin
             {
                 var user = await _userManager.GetUserAsync(User);
                 var userId = user?.Id ?? User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var email = user?.Email ?? User.FindFirstValue("name") ?? User.FindFirstValue(ClaimTypes.Email);
-                var investorId = user?.InvestorId ?? 0;
-                if (investorId == 0)
+                
+                // An investor can own multiple investment contracts/records
+                var userInvestorIds = await _context.Investors
+                    .Where(i => i.OwnerUserId == userId && i.InvestorId.HasValue)
+                    .Select(i => i.InvestorId!.Value)
+                    .ToListAsync();
+
+                if (user?.InvestorId.HasValue == true && user.InvestorId.Value > 0 && !userInvestorIds.Contains(user.InvestorId.Value))
                 {
-                    investorId = await _documentService.GetInvestorIdByUserIdOrEmailAsync(userId, email);
+                    userInvestorIds.Add(user.InvestorId.Value);
                 }
 
-                if (doc.InvestorId != investorId)
+                if (!userInvestorIds.Contains(doc.InvestorId))
                 {
                     return StatusCode(StatusCodes.Status403Forbidden, "Cannot sign document of another investor.");
                 }

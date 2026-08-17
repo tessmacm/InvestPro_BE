@@ -65,7 +65,6 @@ public class NotificationsController : ControllerBase
         var list = await query.OrderByDescending(n => n.CreatedAt).ToListAsync();
 
         var allInvestors = await _context.Investors
-            .Include(i => i.OwnerUserId)
             .ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
         var allUsers = await _context.Users.ToDictionaryAsync(u => u.Id, u => u);
 
@@ -206,6 +205,7 @@ public class NotificationsController : ControllerBase
     }
 
     [HttpPatch("{id}/read")]
+    [HttpPost("{id}/read")]
     public async Task<IActionResult> MarkAsRead(int id)
     {
         var n = await _context.SystemNotifications.FindAsync(id);
