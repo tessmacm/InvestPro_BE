@@ -19,29 +19,39 @@ public class DashboardController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IInvestorDocumentService _documentService;
+    private readonly IInvestorManagementService _investorService;
     private readonly IMemoryCache _cache;
     private const string DashboardCacheKey = "DashboardStatsCacheKey";
 
-    public DashboardController(ApplicationDbContext context, IInvestorDocumentService documentService, IMemoryCache cache)
+    public DashboardController(ApplicationDbContext context, IInvestorDocumentService documentService, IInvestorManagementService investorService, IMemoryCache cache)
     {
         _context = context;
         _documentService = documentService;
+        _investorService = investorService;
         _cache = cache;
     }
 
     [HttpGet("stats")]
-    [ResponseCache(Duration = 15, Location = ResponseCacheLocation.Client)]
     public async Task<IActionResult> GetDashboardStats()
     {
-        if (_cache.TryGetValue(DashboardCacheKey, out object? cachedData) && cachedData != null)
+        // Execute database reads sequentially since EF Core DbContext instance is not thread-safe for concurrent operations
+        var investors = await _investorService.GetAllInvestorsAsync();
+        var payments = await _context.Payments.AsNoTracking().ToListAsync();
+        var isInvestor = User.IsInRole("investor") || User.IsInRole("Investor") || User.IsInRole("client") || User.IsInRole("Client");
+        IEnumerable<IMS.Core.Interfaces.InvestorDocumentDTO> documents;
+        if (isInvestor && !User.IsInRole("admin") && !User.IsInRole("Admin") && !User.IsInRole("manager") && !User.IsInRole("Manager"))
         {
-            return Ok(cachedData);
+            var userId = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var email = User.FindFirstValue("name") ?? User.FindFirstValue(ClaimTypes.Email);
+            var invIdClaim = User.FindFirstValue("investorId");
+            int.TryParse(invIdClaim, out var investorId);
+            documents = await _documentService.GetInvestorDocsByInvestorIdAsync(investorId, userId, email);
+        }
+        else
+        {
+            documents = await _documentService.GetAllInvestorDocs();
         }
 
-        // Execute database reads sequentially since EF Core DbContext instance is not thread-safe for concurrent operations
-        var investors = await _context.Investors.AsNoTracking().ToListAsync();
-        var payments = await _context.Payments.AsNoTracking().ToListAsync();
-        var documents = await _documentService.GetAllInvestorDocs();
         var roiContracts = await _context.RoiContracts.AsNoTracking().ToListAsync();
         var projects = await _context.Projects.AsNoTracking().ToListAsync();
 
@@ -53,8 +63,6 @@ public class DashboardController : ControllerBase
             roiContracts,
             projects
         };
-
-        _cache.Set(DashboardCacheKey, result, TimeSpan.FromSeconds(15));
 
         return Ok(result);
     }

@@ -19,7 +19,6 @@ using System.Linq;
 
 namespace IMS.API.Controllers
 {
-    [AllowAnonymous]
     [Route("api/[controller]")]
     [ApiController]
     public class AuthController : ControllerBase
@@ -636,6 +635,42 @@ namespace IMS.API.Controllers
                     name = fullName,
                     role = assignedRole,
                     status = "active"
+                }
+            });
+        }
+
+        [HttpGet("me")]
+        [Authorize(AuthenticationSchemes = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)]
+        public async Task<IActionResult> GetCurrentUser()
+        {
+            var userId = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Invalid token claims" });
+            }
+
+            var user = await _userManager!.FindByIdAsync(userId);
+            if (user == null || !user.IsActive)
+            {
+                return Unauthorized(new { message = "User does not exist or has been deactivated" });
+            }
+
+            var roles = await _userManager.GetRolesAsync(user);
+            var assignedRole = roles.FirstOrDefault() ?? "investor";
+            if (string.Equals(assignedRole, "superadmin", StringComparison.OrdinalIgnoreCase))
+            {
+                assignedRole = "admin";
+            }
+
+            return Ok(new
+            {
+                user = new
+                {
+                    id = user.Id,
+                    email = user.Email,
+                    name = $"{user.FirstName} {user.LastName}".Trim(),
+                    role = assignedRole,
+                    status = user.IsActive ? "active" : "inactive"
                 }
             });
         }
