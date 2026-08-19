@@ -45,33 +45,7 @@ public class ContextSeed
             }
         }
 
-        // 3. Ensure imsmanager@yopmail.com exists as Manager
-        var managerUser = await userManager.FindByEmailAsync("imsmanager@yopmail.com");
-        if (managerUser == null)
-        {
-            managerUser = new ApplicationUser
-            {
-                UserName = "imsmanager@yopmail.com",
-                Email = "imsmanager@yopmail.com",
-                FirstName = "IMS",
-                LastName = "Manager",
-                EmailConfirmed = true,
-                IsActive = true
-            };
-            await userManager.CreateAsync(managerUser, "Password123!");
-            await userManager.AddToRoleAsync(managerUser, "manager");
-        }
-        else
-        {
-            if (!await userManager.IsInRoleAsync(managerUser, "manager"))
-            {
-                await userManager.AddToRoleAsync(managerUser, "manager");
-            }
-        }
-
-
-
-        // 5. Ensure default project "Current Operations" exists
+        // 3. Ensure default project "Current Operations" exists
         if (context != null)
         {
             var currentOps = context.Projects.FirstOrDefault(p => p.Title == "Current Operations");
