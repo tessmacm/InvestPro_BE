@@ -386,13 +386,16 @@ public class InvestorManagementService : IInvestorManagementService
 
     private async Task GeneratePaymentsForInvestorAsync(Investor investor)
     {
-        // Resolve ROI percentage (e.g., MinRoiRangeId = 3 -> 3% = 0.03, 5 -> 5% = 0.05)
-        decimal roiPercentage = 0.03m;
-        if (investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0)
-        {
-            // Direct percentage selection from UI/CSV is 1 to 100 (%)
-            roiPercentage = investor.MinRoiRangeId.Value / 100m;
-        }
+        // Resolve Min ROI and Max ROI integers (e.g. 1% to 10%)
+        decimal minRoi = investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0 ? investor.MinRoiRangeId.Value : 3m;
+        decimal maxRoi = investor.MaxRoiRangeId.HasValue && investor.MaxRoiRangeId.Value > 0 ? investor.MaxRoiRangeId.Value : minRoi;
+
+        // Month Due = ((Min ROI + Max ROI)/2)% of the invested amount
+        decimal avgRoiPercent = (minRoi + maxRoi) / 2m; // e.g. (3 + 3)/2 = 3% or (2 + 4)/2 = 3%
+        decimal monthlyRoiRate = avgRoiPercent / 100m;  // 3% -> 0.03
+
+        decimal capital = investor.CapitalAmount ?? 0m;
+        decimal monthDue = Math.Round(capital * monthlyRoiRate, 2);
 
         // Parse investment duration in months (default 12)
         int durationMonths = 12;
@@ -405,18 +408,14 @@ public class InvestorManagementService : IInvestorManagementService
             }
         }
 
-        decimal capital = investor.CapitalAmount ?? 0m;
         var onboardingDate = investor.DateOfBoarding ?? DateTime.UtcNow;
-
         var isFixed = (investor.PayoutType ?? "").Equals("Fixed", StringComparison.OrdinalIgnoreCase) || investor.RoiTypeId == 1;
 
         if (isFixed)
         {
-            // Scenario 1 & 2: Fixed / Constant
-            // Payout Date = DOB + Duration in Months
-            // Total ROI Payout Amount (PA) = Capital * ROI% * Duration (Months)
+            // If fixed = Duration in months * month due
             var payoutDate = onboardingDate.AddMonths(durationMonths);
-            decimal payoutAmount = Math.Round(capital * roiPercentage * durationMonths, 2);
+            decimal payoutAmount = Math.Round(durationMonths * monthDue, 2);
 
             var payment = new Payment
             {
@@ -438,9 +437,9 @@ public class InvestorManagementService : IInvestorManagementService
 
             if (investor.RoiTypeId == 2) // Weekly
             {
-                // Weekly interval
+                // Weekly interval: (12 * monthDue) / 52
                 int numWeeks = (int)Math.Round((durationMonths * 365.25m / 12m) / 7m);
-                decimal weeklyAmount = Math.Round((capital * roiPercentage * 12m) / 52m, 2);
+                decimal weeklyAmount = Math.Round((12m * monthDue) / 52m, 2);
                 for (int i = 1; i <= numWeeks; i++)
                 {
                     var paymentDate = onboardingDate.AddDays(i * 7);
@@ -478,7 +477,12 @@ public class InvestorManagementService : IInvestorManagementService
                 numInstallments = durationMonths;
             }
 
-            decimal installmentAmount = Math.Round(capital * roiPercentage * monthsPerInterval, 2);
+            // Month Due = ((Min ROI + Max ROI)/2)% of the invested amount.
+            // When variant is monthly = 1 * month due
+            // If variant is Quarterly = 3 * month due
+            // If half yearly = 6 * month due
+            // If yearly = 12 * month due
+            decimal installmentAmount = Math.Round(monthDue * monthsPerInterval, 2);
 
             for (int i = 0; i < numInstallments; i++)
             {
