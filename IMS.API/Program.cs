@@ -223,6 +223,12 @@ using (var scope = app.Services.CreateScope())
                 BEGIN
                     ALTER TABLE RoiTypes ADD Status NVARCHAR(50) NOT NULL DEFAULT 'active';
                 END
+                IF NOT EXISTS (SELECT * FROM [RoiTypes] WHERE [Id] = 6)
+                BEGIN
+                    SET IDENTITY_INSERT [RoiTypes] ON;
+                    INSERT INTO [RoiTypes] ([Id], [Name], [Status]) VALUES (6, 'Half-Yearly', 'active');
+                    SET IDENTITY_INSERT [RoiTypes] OFF;
+                END
             END
 
             IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'InvestorDocuments')

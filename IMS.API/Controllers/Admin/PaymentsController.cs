@@ -80,7 +80,7 @@ public class PaymentsController : ControllerBase
             var name = user != null ? (user.LastName == "User" || string.IsNullOrWhiteSpace(user.LastName) ? user.FirstName : $"{user.FirstName} {user.LastName}".Trim()) : (inv?.LegalBusinessName ?? "Investor");
             if (string.IsNullOrEmpty(name)) name = inv?.LegalBusinessName ?? "Investor";
 
-            var cycle = inv?.PayoutType == "Fixed" || inv?.RoiTypeId == 1 ? "Constant" : (inv?.RoiTypeId == 2 ? "Weekly" : (inv?.RoiTypeId == 4 ? "Quarterly" : (inv?.RoiTypeId == 5 ? "Yearly" : "Monthly")));
+            var cycle = inv?.PayoutType == "Fixed" || inv?.RoiTypeId == 1 ? "Constant" : (inv?.RoiTypeId == 2 ? "Weekly" : (inv?.RoiTypeId == 4 ? "Quarterly" : (inv?.RoiTypeId == 6 ? "Half-Yearly" : (inv?.RoiTypeId == 5 ? "Yearly" : "Monthly"))));
 
             return new {
                 paymentId = p.PaymentId,

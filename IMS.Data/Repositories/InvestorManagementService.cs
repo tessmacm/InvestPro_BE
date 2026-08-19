@@ -227,9 +227,9 @@ public class InvestorManagementService : IInvestorManagementService
             Notes = string.IsNullOrEmpty(dto.notes) ? "Investor Registration" : dto.notes,
             InvestorTypeId = Math.Clamp(dto.type ?? 1, 1, 2),
             DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
-            MinRoiRangeId = Math.Clamp(dto.min_RoiRangeId ?? dto.min_roi_id ?? 1, 1, 4),
-            MaxRoiRangeId = Math.Clamp(dto.max_RoiRangeId ?? dto.max_roi_id ?? 4, 1, 4),
-            RoiTypeId = Math.Clamp(dto.roiTypeId ?? 3, 1, 5),
+            MinRoiRangeId = dto.min_RoiRangeId ?? dto.min_roi_id ?? 1,
+            MaxRoiRangeId = dto.max_RoiRangeId ?? dto.max_roi_id ?? 4,
+            RoiTypeId = dto.roiTypeId ?? 3,
             PayoutType = dto.payoutType ?? (dto.roiTypeId == 1 ? "Fixed" : "Variant"),
             BankName = dto.bank,
             BankAccountNo = dto.acNumber,
@@ -386,79 +386,149 @@ public class InvestorManagementService : IInvestorManagementService
 
     private async Task GeneratePaymentsForInvestorAsync(Investor investor)
     {
-        decimal percentage = 0.05m;
-        var roiRange = await _context.RoiRanges.FindAsync(investor.MinRoiRangeId ?? 1);
-        if (roiRange != null)
+        // Resolve ROI percentage (e.g., MinRoiRangeId = 2 -> 2% = 0.02, 3 -> 3% = 0.03)
+        decimal roiPercentage = 0.03m;
+        if (investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0)
         {
-            percentage = roiRange.Percentage;
-        }
-
-        int numPayments = 12;
-        int monthsInterval = 1;
-        decimal divisor = 12m;
-
-        if (investor.RoiTypeId == 1) // Fixed
-        {
-            numPayments = 1;
-            monthsInterval = 0;
-            divisor = 1m;
-        }
-        else if (investor.RoiTypeId == 2) // Weekly
-        {
-            numPayments = 52;
-            monthsInterval = 0;
-            divisor = 52m;
-        }
-        else if (investor.RoiTypeId == 4) // Quarterly
-        {
-            numPayments = 4;
-            monthsInterval = 3;
-            divisor = 4m;
-        }
-        else if (investor.RoiTypeId == 5) // Yearly
-        {
-            numPayments = 1;
-            monthsInterval = 12;
-            divisor = 1m;
-        }
-        else // Monthly (Default)
-        {
-            numPayments = 12;
-            monthsInterval = 1;
-            divisor = 12m;
-        }
-
-        decimal capital = investor.CapitalAmount ?? 0m;
-        decimal paymentAmount = Math.Round((capital * percentage) / divisor, 2);
-
-        var onboardingDate = investor.DateOfBoarding ?? DateTime.UtcNow;
-
-        for (int i = 1; i <= numPayments; i++)
-        {
-            DateTime paymentDate;
-            if (investor.RoiTypeId == 2) // Weekly
+            var roiRange = await _context.RoiRanges.FindAsync(investor.MinRoiRangeId.Value);
+            if (roiRange != null)
             {
-                paymentDate = onboardingDate.AddDays(i * 7);
-            }
-            else if (investor.RoiTypeId == 1) // Fixed
-            {
-                paymentDate = onboardingDate;
+                roiPercentage = roiRange.Percentage > 1.0m ? (roiRange.Percentage / 100m) : roiRange.Percentage;
+                // If the user selected direct integer % from the UI (1 to 10), use that directly
+                if (investor.MinRoiRangeId.Value >= 1 && investor.MinRoiRangeId.Value <= 20)
+                {
+                    roiPercentage = investor.MinRoiRangeId.Value / 100m;
+                }
             }
             else
             {
-                paymentDate = onboardingDate.AddMonths(i * monthsInterval);
+                roiPercentage = investor.MinRoiRangeId.Value / 100m;
             }
+        }
+
+        // Parse investment duration in months (default 12)
+        int durationMonths = 12;
+        if (!string.IsNullOrWhiteSpace(investor.Duration))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(investor.Duration, @"\d+");
+            if (match.Success && int.TryParse(match.Value, out var parsedMonths) && parsedMonths > 0)
+            {
+                durationMonths = parsedMonths;
+            }
+        }
+
+        decimal capital = investor.CapitalAmount ?? 0m;
+        var onboardingDate = investor.DateOfBoarding ?? DateTime.UtcNow;
+
+        var isFixed = (investor.PayoutType ?? "").Equals("Fixed", StringComparison.OrdinalIgnoreCase) || investor.RoiTypeId == 1;
+
+        if (isFixed)
+        {
+            // Scenario 1 & 2: Fixed / Constant
+            // Payout Date = DOB + Duration in Months
+            // Total ROI Payout Amount (PA) = Capital * ROI% * Duration (Months)
+            var payoutDate = onboardingDate.AddMonths(durationMonths);
+            decimal payoutAmount = Math.Round(capital * roiPercentage * durationMonths, 2);
 
             var payment = new Payment
             {
                 InvestorId = investor.InvestorId ?? 0,
-                Amount = paymentAmount,
-                PaymentDate = paymentDate,
+                Amount = payoutAmount,
+                PaymentDate = payoutDate,
                 Status = "Pending",
                 IsSent = false,
                 IsReceived = false
             };
             await _context.Payments.AddAsync(payment);
+        }
+        else
+        {
+            // Variant Payouts: Monthly, Quarterly, Half-Yearly, Yearly, Weekly
+            // Payout Amount (PA) per installment = Capital * ROI% * monthsPerInterval
+            int monthsPerInterval = 1;
+            int numInstallments = durationMonths;
+
+            if (investor.RoiTypeId == 2) // Weekly
+            {
+                // Weekly interval
+                int numWeeks = (int)Math.Round((durationMonths * 365.25m / 12m) / 7m);
+                decimal weeklyAmount = Math.Round((capital * roiPercentage * 12m) / 52m, 2);
+                for (int i = 1; i <= numWeeks; i++)
+                {
+                    var paymentDate = onboardingDate.AddDays(i * 7);
+                    var payment = new Payment
+                    {
+                        InvestorId = investor.InvestorId ?? 0,
+                        Amount = weeklyAmount,
+                        PaymentDate = paymentDate,
+                        Status = "Pending",
+                        IsSent = false,
+                        IsReceived = false
+                    };
+                    await _context.Payments.AddAsync(payment);
+                }
+                return;
+            }
+            else if (investor.RoiTypeId == 4) // Quarterly
+            {
+                monthsPerInterval = 3;
+                numInstallments = Math.Max(1, durationMonths / 3);
+            }
+            else if (investor.RoiTypeId == 6) // Half-Yearly
+            {
+                monthsPerInterval = 6;
+                numInstallments = Math.Max(1, durationMonths / 6);
+            }
+            else if (investor.RoiTypeId == 5) // Yearly
+            {
+                monthsPerInterval = 12;
+                numInstallments = Math.Max(1, durationMonths / 12);
+            }
+            else // Monthly (Default RoiTypeId == 3)
+            {
+                monthsPerInterval = 1;
+                numInstallments = durationMonths;
+            }
+
+            decimal installmentAmount = Math.Round(capital * roiPercentage * monthsPerInterval, 2);
+
+            for (int i = 0; i < numInstallments; i++)
+            {
+                DateTime paymentDate;
+                if (investor.RoiTypeId == 4) // Quarterly
+                {
+                    // 1st Payout = DOB + 45 days + 2 months (~105 days), subsequent = +90 days each
+                    var firstQuarterlyDate = onboardingDate.AddDays(105);
+                    paymentDate = firstQuarterlyDate.AddDays(i * 90);
+                }
+                else if (investor.RoiTypeId == 6) // Half-Yearly
+                {
+                    // 1st Payout = DOB + 45 days + 5 months (~198 days), subsequent = +180 days each
+                    var firstHalfYearlyDate = onboardingDate.AddDays(198);
+                    paymentDate = firstHalfYearlyDate.AddDays(i * 180);
+                }
+                else if (investor.RoiTypeId == 5) // Yearly
+                {
+                    // 1st Payout = DOB + 45 days + 11 months (~365 days)
+                    paymentDate = onboardingDate.AddDays(45).AddMonths(11 + (i * 12));
+                }
+                else // Monthly (Default RoiTypeId == 3)
+                {
+                    // 1st Payout = DOB + 45 days, subsequent = +30 days each
+                    paymentDate = onboardingDate.AddDays(45 + (i * 30));
+                }
+
+                var payment = new Payment
+                {
+                    InvestorId = investor.InvestorId ?? 0,
+                    Amount = installmentAmount,
+                    PaymentDate = paymentDate,
+                    Status = "Pending",
+                    IsSent = false,
+                    IsReceived = false
+                };
+                await _context.Payments.AddAsync(payment);
+            }
         }
     }
 }
