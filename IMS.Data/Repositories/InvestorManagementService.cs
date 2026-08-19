@@ -228,7 +228,7 @@ public class InvestorManagementService : IInvestorManagementService
             InvestorTypeId = Math.Clamp(dto.type ?? 1, 1, 2),
             DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
             MinRoiRangeId = dto.min_RoiRangeId ?? dto.min_roi_id ?? 1,
-            MaxRoiRangeId = dto.max_RoiRangeId ?? dto.max_roi_id ?? 4,
+            MaxRoiRangeId = Math.Clamp(dto.max_RoiRangeId ?? dto.max_roi_id ?? 4, 1, 4),
             RoiTypeId = dto.roiTypeId ?? 3,
             PayoutType = dto.payoutType ?? (dto.roiTypeId == 1 ? "Fixed" : "Variant"),
             BankName = dto.bank,
@@ -302,7 +302,7 @@ public class InvestorManagementService : IInvestorManagementService
         investor.InvestorTypeId = dto.type;
         investor.DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow;
         investor.MinRoiRangeId = dto.min_roi_id ?? dto.min_RoiRangeId;
-        investor.MaxRoiRangeId = dto.max_roi_id ?? dto.max_RoiRangeId;
+        investor.MaxRoiRangeId = dto.max_roi_id.HasValue ? Math.Clamp(dto.max_roi_id.Value, 1, 4) : (dto.max_RoiRangeId.HasValue ? Math.Clamp(dto.max_RoiRangeId.Value, 1, 4) : 4);
         investor.RoiTypeId = dto.roiTypeId ?? 3;
         investor.PayoutType = dto.payoutType;
         investor.BankName = dto.bank;
