@@ -386,24 +386,12 @@ public class InvestorManagementService : IInvestorManagementService
 
     private async Task GeneratePaymentsForInvestorAsync(Investor investor)
     {
-        // Resolve ROI percentage (e.g., MinRoiRangeId = 2 -> 2% = 0.02, 3 -> 3% = 0.03)
+        // Resolve ROI percentage (e.g., MinRoiRangeId = 3 -> 3% = 0.03, 5 -> 5% = 0.05)
         decimal roiPercentage = 0.03m;
         if (investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0)
         {
-            var roiRange = await _context.RoiRanges.FindAsync(investor.MinRoiRangeId.Value);
-            if (roiRange != null)
-            {
-                roiPercentage = roiRange.Percentage > 1.0m ? (roiRange.Percentage / 100m) : roiRange.Percentage;
-                // If the user selected direct integer % from the UI (1 to 10), use that directly
-                if (investor.MinRoiRangeId.Value >= 1 && investor.MinRoiRangeId.Value <= 20)
-                {
-                    roiPercentage = investor.MinRoiRangeId.Value / 100m;
-                }
-            }
-            else
-            {
-                roiPercentage = investor.MinRoiRangeId.Value / 100m;
-            }
+            // Direct percentage selection from UI/CSV is 1 to 100 (%)
+            roiPercentage = investor.MinRoiRangeId.Value / 100m;
         }
 
         // Parse investment duration in months (default 12)
