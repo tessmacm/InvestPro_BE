@@ -399,9 +399,9 @@ public class InvestorManagementService : IInvestorManagementService
             ? explicitMaxRoi.Value
             : (investor.MaxRoiRangeId.HasValue && investor.MaxRoiRangeId.Value > 0 ? investor.MaxRoiRangeId.Value : minRoi);
 
-        // Month Due = ((Min ROI + Max ROI)/2)% of the invested amount
-        decimal avgRoiPercent = (minRoi + maxRoi) / 2m; // e.g. (3 + 3)/2 = 3% or (2 + 4)/2 = 3%
-        decimal monthlyRoiRate = avgRoiPercent / 100m;  // 3% -> 0.03
+        // Month Due = Math.Round(((Min ROI + Max ROI)/2))% of the invested amount (e.g., 9% & 10% -> 10%)
+        decimal avgRoiPercent = Math.Round((minRoi + maxRoi) / 2m, MidpointRounding.AwayFromZero);
+        decimal monthlyRoiRate = avgRoiPercent / 100m;
 
         decimal capital = investor.CapitalAmount ?? 0m;
         decimal monthDue = Math.Round(capital * monthlyRoiRate, 2);
