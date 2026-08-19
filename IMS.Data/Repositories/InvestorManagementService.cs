@@ -246,7 +246,9 @@ public class InvestorManagementService : IInvestorManagementService
         await _unitOfWork.CompleteAsync();
 
         // Auto-generate payment schedule for this investment
-        await GeneratePaymentsForInvestorAsync(newInvestor);
+        decimal? explicitMinRoi = dto.min_RoiRangeId ?? dto.min_roi_id;
+        decimal? explicitMaxRoi = dto.max_RoiRangeId ?? dto.max_roi_id;
+        await GeneratePaymentsForInvestorAsync(newInvestor, explicitMinRoi, explicitMaxRoi);
         await _unitOfWork.CompleteAsync();
 
         // Project lookup for agreement title
@@ -321,7 +323,9 @@ public class InvestorManagementService : IInvestorManagementService
         {
             _context.Payments.RemoveRange(pendingPayments);
         }
-        await GeneratePaymentsForInvestorAsync(investor);
+        decimal? explicitMinRoi = dto.min_roi_id ?? dto.min_RoiRangeId;
+        decimal? explicitMaxRoi = dto.max_roi_id ?? dto.max_RoiRangeId;
+        await GeneratePaymentsForInvestorAsync(investor, explicitMinRoi, explicitMaxRoi);
 
         // Sync shared user and bank details across ALL investments belonging to this user
         if (!string.IsNullOrEmpty(investor.OwnerUserId))
@@ -384,11 +388,16 @@ public class InvestorManagementService : IInvestorManagementService
         return await _unitOfWork.CompleteAsync() >= 0;
     }
 
-    private async Task GeneratePaymentsForInvestorAsync(Investor investor)
+    private async Task GeneratePaymentsForInvestorAsync(Investor investor, decimal? explicitMinRoi = null, decimal? explicitMaxRoi = null)
     {
         // Resolve Min ROI and Max ROI integers (e.g. 1% to 10%)
-        decimal minRoi = investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0 ? investor.MinRoiRangeId.Value : 3m;
-        decimal maxRoi = investor.MaxRoiRangeId.HasValue && investor.MaxRoiRangeId.Value > 0 ? investor.MaxRoiRangeId.Value : minRoi;
+        decimal minRoi = explicitMinRoi.HasValue && explicitMinRoi.Value > 0
+            ? explicitMinRoi.Value
+            : (investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0 ? investor.MinRoiRangeId.Value : 3m);
+
+        decimal maxRoi = explicitMaxRoi.HasValue && explicitMaxRoi.Value > 0
+            ? explicitMaxRoi.Value
+            : (investor.MaxRoiRangeId.HasValue && investor.MaxRoiRangeId.Value > 0 ? investor.MaxRoiRangeId.Value : minRoi);
 
         // Month Due = ((Min ROI + Max ROI)/2)% of the invested amount
         decimal avgRoiPercent = (minRoi + maxRoi) / 2m; // e.g. (3 + 3)/2 = 3% or (2 + 4)/2 = 3%
