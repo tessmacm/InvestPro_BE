@@ -81,12 +81,12 @@ public class DashboardController : ControllerBase
             DELETE FROM SystemReports;
             DELETE FROM Investors;
             
-            -- Remove any investor/client users except Admin (tessma.cm@gmail.com) and Manager (imsmanager@yopmail.com)
-            DELETE FROM AspNetUserRoles WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com', 'imsmanager@yopmail.com'));
-            DELETE FROM AspNetUserClaims WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com', 'imsmanager@yopmail.com'));
-            DELETE FROM AspNetUserLogins WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com', 'imsmanager@yopmail.com'));
-            DELETE FROM AspNetUserTokens WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com', 'imsmanager@yopmail.com'));
-            DELETE FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com', 'imsmanager@yopmail.com');
+            -- Remove any investor/client/manager users except Admin (tessma.cm@gmail.com)
+            DELETE FROM AspNetUserRoles WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com'));
+            DELETE FROM AspNetUserClaims WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com'));
+            DELETE FROM AspNetUserLogins WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com'));
+            DELETE FROM AspNetUserTokens WHERE UserId IN (SELECT Id FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com'));
+            DELETE FROM AspNetUsers WHERE Email NOT IN ('tessma.cm@gmail.com');
             
             -- Reset FundedAmount on projects
             UPDATE Projects SET FundedAmount = 0;
