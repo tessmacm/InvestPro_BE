@@ -29,35 +29,33 @@ public class PaymentsController : ControllerBase
             .Include(p => p.InvestorNav)
             .AsQueryable();
 
-        if (User.IsInRole("investor") || User.IsInRole("Investor"))
+        if (User.IsInRole("investor") || User.IsInRole("Investor") || User.IsInRole("client") || User.IsInRole("Client"))
         {
-            var claim = User.FindFirst("investorId");
-            var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            
-            if (!string.IsNullOrEmpty(subClaim))
-            {
-                // Filter all payments belonging to any investment owned by this user
-                var userInvestorIds = await _context.Investors
-                    .Where(i => i.OwnerUserId == subClaim && i.InvestorId.HasValue)
-                    .Select(i => i.InvestorId!.Value)
-                    .ToListAsync();
+            var userId = User.FindFirst("sub")?.Value 
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var email = User.FindFirst("name")?.Value 
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            var investorIdClaim = User.FindFirst("investorId")?.Value;
 
-                if (userInvestorIds.Any())
-                {
-                    query = query.Where(p => userInvestorIds.Contains(p.InvestorId));
-                }
-                else if (claim != null && int.TryParse(claim.Value, out var id))
-                {
-                    query = query.Where(p => p.InvestorId == id);
-                }
-                else
-                {
-                    return Ok(new object[0]);
-                }
-            }
-            else if (claim != null && int.TryParse(claim.Value, out var id))
+            // Find all Investor contract profiles belonging to this authenticated user (by matching OwnerUserId or Owner User's Email)
+            var userInvestorIds = await (
+                from inv in _context.Investors.AsNoTracking()
+                join u in _context.Users.AsNoTracking() on inv.OwnerUserId equals u.Id into userGroup
+                from u in userGroup.DefaultIfEmpty()
+                where inv.InvestorId.HasValue && (
+                    (!string.IsNullOrEmpty(userId) && inv.OwnerUserId == userId) ||
+                    (!string.IsNullOrEmpty(email) && u != null && u.Email == email)
+                )
+                select inv.InvestorId!.Value
+            ).ToListAsync();
+
+            if (userInvestorIds.Any())
             {
-                query = query.Where(p => p.InvestorId == id);
+                query = query.Where(p => userInvestorIds.Contains(p.InvestorId));
+            }
+            else if (!string.IsNullOrEmpty(investorIdClaim) && int.TryParse(investorIdClaim, out var parsedId))
+            {
+                query = query.Where(p => p.InvestorId == parsedId);
             }
             else
             {
