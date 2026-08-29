@@ -68,6 +68,10 @@ public class NotificationsController : ControllerBase
             .ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
         var allUsers = await _context.Users.ToDictionaryAsync(u => u.Id, u => u);
 
+        var userInvestorMap = await _context.Investors
+            .Where(i => !string.IsNullOrEmpty(i.OwnerUserId))
+            .ToDictionaryAsync(i => i.OwnerUserId!, i => i.LegalBusinessName ?? "Investor");
+
         return Ok(list.Select(n => {
             string resolvedTo = "Management";
             if (n.SenderRole == "investor")
@@ -92,6 +96,19 @@ public class NotificationsController : ControllerBase
                 resolvedTo = "All Investors";
             }
 
+            string resolvedSender = n.SenderName ?? (n.SenderRole == "investor" ? "Investor" : "Management");
+            if (n.SenderRole == "investor" && !string.IsNullOrEmpty(n.SenderUserId))
+            {
+                if (userInvestorMap.TryGetValue(n.SenderUserId, out var invName) && !string.IsNullOrEmpty(invName))
+                {
+                    resolvedSender = invName;
+                }
+                else if (allUsers.TryGetValue(n.SenderUserId, out var u) && !string.IsNullOrWhiteSpace($"{u.FirstName} {u.LastName}"))
+                {
+                    resolvedSender = $"{u.FirstName} {u.LastName}".Trim();
+                }
+            }
+
             return new {
                 id = n.Id,
                 title = n.Title,
@@ -100,7 +117,7 @@ public class NotificationsController : ControllerBase
                 readAt = n.ReadAt,
                 createdAt = n.CreatedAt,
                 senderUserId = n.SenderUserId,
-                senderName = n.SenderName ?? (n.SenderRole == "investor" ? "Investor" : "Management"),
+                senderName = resolvedSender,
                 senderRole = n.SenderRole ?? "admin",
                 isSentByMe = !string.IsNullOrEmpty(currentUserId) && n.SenderUserId == currentUserId,
                 investorId = n.InvestorId,
@@ -122,6 +139,24 @@ public class NotificationsController : ControllerBase
         
         string resolvedTo = n.SenderRole == "investor" ? "Admin & Manager" : (n.InvestorId.HasValue && allInvestors.TryGetValue(n.InvestorId.Value, out var name) ? name : "All Investors");
 
+        string resolvedSender = n.SenderName ?? (n.SenderRole == "investor" ? "Investor" : "Management");
+        if (n.SenderRole == "investor" && !string.IsNullOrEmpty(n.SenderUserId))
+        {
+            var senderInv = await _context.Investors.FirstOrDefaultAsync(i => i.OwnerUserId == n.SenderUserId);
+            if (senderInv != null && !string.IsNullOrEmpty(senderInv.LegalBusinessName))
+            {
+                resolvedSender = senderInv.LegalBusinessName;
+            }
+            else
+            {
+                var user = await _context.Users.FindAsync(n.SenderUserId);
+                if (user != null && !string.IsNullOrWhiteSpace($"{user.FirstName} {user.LastName}"))
+                {
+                    resolvedSender = $"{user.FirstName} {user.LastName}".Trim();
+                }
+            }
+        }
+
         return Ok(new {
             id = n.Id,
             title = n.Title,
@@ -130,7 +165,7 @@ public class NotificationsController : ControllerBase
             readAt = n.ReadAt,
             createdAt = n.CreatedAt,
             senderUserId = n.SenderUserId,
-            senderName = n.SenderName ?? "Management",
+            senderName = resolvedSender,
             senderRole = n.SenderRole ?? "admin",
             isSentByMe = !string.IsNullOrEmpty(currentUserId) && n.SenderUserId == currentUserId,
             investorId = n.InvestorId,
@@ -154,15 +189,24 @@ public class NotificationsController : ControllerBase
         if (isInvestor)
         {
             model.SenderRole = "investor";
+            string resolvedSenderName = "Investor";
             if (!string.IsNullOrEmpty(currentUserId))
             {
-                var user = await _context.Users.FindAsync(currentUserId);
-                model.SenderName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "Investor";
+                var invProfile = await _context.Investors.FirstOrDefaultAsync(i => i.OwnerUserId == currentUserId);
+                if (invProfile != null && !string.IsNullOrEmpty(invProfile.LegalBusinessName))
+                {
+                    resolvedSenderName = invProfile.LegalBusinessName;
+                }
+                else
+                {
+                    var user = await _context.Users.FindAsync(currentUserId);
+                    if (user != null && !string.IsNullOrWhiteSpace($"{user.FirstName} {user.LastName}"))
+                    {
+                        resolvedSenderName = $"{user.FirstName} {user.LastName}".Trim();
+                    }
+                }
             }
-            else
-            {
-                model.SenderName = "Investor";
-            }
+            model.SenderName = resolvedSenderName;
             // By default sent to Admin and Manager (InvestorId = null, target = null)
             model.InvestorId = null;
             model.TargetInvestorIds = null;
