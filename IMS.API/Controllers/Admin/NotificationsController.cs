@@ -64,13 +64,18 @@ public class NotificationsController : ControllerBase
 
         var list = await query.OrderByDescending(n => n.CreatedAt).ToListAsync();
 
-        var allInvestors = await _context.Investors
-            .ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
+        var investorsList = await _context.Investors.ToListAsync();
+        var allInvestors = investorsList
+            .Where(i => i.InvestorId.HasValue)
+            .GroupBy(i => i.InvestorId!.Value)
+            .ToDictionary(g => g.Key, g => g.First().LegalBusinessName ?? "Investor");
+
         var allUsers = await _context.Users.ToDictionaryAsync(u => u.Id, u => u);
 
-        var userInvestorMap = await _context.Investors
+        var userInvestorMap = investorsList
             .Where(i => !string.IsNullOrEmpty(i.OwnerUserId))
-            .ToDictionaryAsync(i => i.OwnerUserId!, i => i.LegalBusinessName ?? "Investor");
+            .GroupBy(i => i.OwnerUserId!)
+            .ToDictionary(g => g.Key, g => g.First().LegalBusinessName ?? "Investor");
 
         return Ok(list.Select(n => {
             string resolvedTo = "Management";
@@ -135,7 +140,11 @@ public class NotificationsController : ControllerBase
         if (n == null) return NotFound();
 
         var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var allInvestors = await _context.Investors.ToDictionaryAsync(i => i.InvestorId ?? 0, i => i.LegalBusinessName ?? "Investor");
+        var investorsList = await _context.Investors.ToListAsync();
+        var allInvestors = investorsList
+            .Where(i => i.InvestorId.HasValue)
+            .GroupBy(i => i.InvestorId!.Value)
+            .ToDictionary(g => g.Key, g => g.First().LegalBusinessName ?? "Investor");
         
         string resolvedTo = n.SenderRole == "investor" ? "Admin & Manager" : (n.InvestorId.HasValue && allInvestors.TryGetValue(n.InvestorId.Value, out var name) ? name : "All Investors");
 
