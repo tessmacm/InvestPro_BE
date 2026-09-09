@@ -29,8 +29,8 @@ public class InvestorSummaryDTO
     public string reg_number { get; set; } = string.Empty;
     public string status { get; set; } = string.Empty;
     public string date_of_onboarding { get; set; } = string.Empty;
-    public int? min_roi_id { get; set; }
-    public int? max_roi_id { get; set; }
+    public decimal? min_roi_id { get; set; }
+    public decimal? max_roi_id { get; set; }
     public int? roiTypeId { get; set; }
     public string? payoutType { get; set; }
     public string? bank { get; set; }
@@ -56,8 +56,8 @@ public class InvestorDetailsDTO
     public string reg_number { get; set; } = string.Empty;
     public string status { get; set; } = string.Empty;
     public string date_of_onboarding { get; set; } = string.Empty;
-    public int? min_roi_id { get; set; }
-    public int? max_roi_id { get; set; }
+    public decimal? min_roi_id { get; set; }
+    public decimal? max_roi_id { get; set; }
     public int? roiTypeId { get; set; }
     public string? payoutType { get; set; }
     public string? bank { get; set; }
@@ -92,10 +92,10 @@ public class UpdateInvestorDetailsDTO
     public string? reg_number { get; set; }
     public string? status { get; set; }
     public string? date_of_onboarding { get; set; }
-    public int? min_roi_id { get; set; }
-    public int? max_roi_id { get; set; }
-    public int? min_RoiRangeId { get; set; }
-    public int? max_RoiRangeId { get; set; }
+    public decimal? min_roi_id { get; set; }
+    public decimal? max_roi_id { get; set; }
+    public decimal? min_RoiRangeId { get; set; }
+    public decimal? max_RoiRangeId { get; set; }
     public int? roiTypeId { get; set; }
     public string? payoutType { get; set; }
     public string? bank { get; set; }
@@ -122,10 +122,10 @@ public class RegisterInvestorDTO
     public string? reg_number { get; set; } 
     public string? status { get; set; } 
     public string? date_of_onboarding { get; set; } 
-    public int? min_RoiRangeId { get; set; }
-    public int? max_RoiRangeId { get; set; }
-    public int? min_roi_id { get; set; }
-    public int? max_roi_id { get; set; }
+    public decimal? min_RoiRangeId { get; set; }
+    public decimal? max_RoiRangeId { get; set; }
+    public decimal? min_roi_id { get; set; }
+    public decimal? max_roi_id { get; set; }
     public int? roiTypeId { get; set; }
     public string? payoutType { get; set; }
     public string? bank { get; set; }

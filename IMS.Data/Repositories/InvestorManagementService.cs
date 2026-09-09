@@ -227,8 +227,8 @@ public class InvestorManagementService : IInvestorManagementService
             Notes = string.IsNullOrEmpty(dto.notes) ? "Investor Registration" : dto.notes,
             InvestorTypeId = Math.Clamp(dto.type ?? 1, 1, 2),
             DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow,
-            MinRoiRangeId = Math.Clamp(dto.min_RoiRangeId ?? dto.min_roi_id ?? 1, 1, 4),
-            MaxRoiRangeId = Math.Clamp(dto.max_RoiRangeId ?? dto.max_roi_id ?? 4, 1, 4),
+            MinRoiRangeId = (int)Math.Clamp(Math.Round(dto.min_RoiRangeId ?? dto.min_roi_id ?? 1m), 1m, 20m),
+            MaxRoiRangeId = (int)Math.Clamp(Math.Round(dto.max_RoiRangeId ?? dto.max_roi_id ?? 5m), 1m, 20m),
             RoiTypeId = dto.roiTypeId ?? 3,
             PayoutType = dto.payoutType ?? (dto.roiTypeId == 1 ? "Fixed" : "Variant"),
             BankName = dto.bank,
@@ -303,8 +303,8 @@ public class InvestorManagementService : IInvestorManagementService
         investor.Notes = dto.notes ?? "Basic";
         investor.InvestorTypeId = dto.type;
         investor.DateOfBoarding = DateTime.TryParse(dto.date_of_onboarding, out var dob) ? dob : DateTime.UtcNow;
-        investor.MinRoiRangeId = dto.min_roi_id.HasValue ? Math.Clamp(dto.min_roi_id.Value, 1, 4) : (dto.min_RoiRangeId.HasValue ? Math.Clamp(dto.min_RoiRangeId.Value, 1, 4) : 1);
-        investor.MaxRoiRangeId = dto.max_roi_id.HasValue ? Math.Clamp(dto.max_roi_id.Value, 1, 4) : (dto.max_RoiRangeId.HasValue ? Math.Clamp(dto.max_RoiRangeId.Value, 1, 4) : 4);
+        investor.MinRoiRangeId = dto.min_roi_id.HasValue ? (int)Math.Clamp(Math.Round(dto.min_roi_id.Value), 1m, 20m) : (dto.min_RoiRangeId.HasValue ? (int)Math.Clamp(Math.Round(dto.min_RoiRangeId.Value), 1m, 20m) : 1);
+        investor.MaxRoiRangeId = dto.max_roi_id.HasValue ? (int)Math.Clamp(Math.Round(dto.max_roi_id.Value), 1m, 20m) : (dto.max_RoiRangeId.HasValue ? (int)Math.Clamp(Math.Round(dto.max_RoiRangeId.Value), 1m, 20m) : 5);
         investor.RoiTypeId = dto.roiTypeId ?? 3;
         investor.PayoutType = dto.payoutType;
         investor.BankName = dto.bank;
@@ -399,8 +399,8 @@ public class InvestorManagementService : IInvestorManagementService
             ? explicitMaxRoi.Value
             : (investor.MaxRoiRangeId.HasValue && investor.MaxRoiRangeId.Value > 0 ? investor.MaxRoiRangeId.Value : minRoi);
 
-        // Month Due = Math.Round(((Min ROI + Max ROI)/2))% of the invested amount (e.g., 9% & 10% -> 10%)
-        decimal avgRoiPercent = Math.Round((minRoi + maxRoi) / 2m, MidpointRounding.AwayFromZero);
+        // Month Due = ((Min ROI + Max ROI)/2)% of the invested amount with no round-offs
+        decimal avgRoiPercent = (minRoi + maxRoi) / 2m;
         decimal monthlyRoiRate = avgRoiPercent / 100m;
 
         decimal capital = investor.CapitalAmount ?? 0m;

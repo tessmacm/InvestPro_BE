@@ -273,7 +273,7 @@ namespace IMS.API.Controllers.Admin
                 // Ensure defaults for optional fields if not specified
                 dto.type = dto.type.HasValue && dto.type.Value > 0 ? dto.type.Value : 1;
                 dto.min_RoiRangeId = dto.min_RoiRangeId ?? dto.min_roi_id ?? 1;
-                dto.max_RoiRangeId = dto.max_RoiRangeId ?? dto.max_roi_id ?? 4;
+                dto.max_RoiRangeId = dto.max_RoiRangeId ?? dto.max_roi_id ?? 5;
                 dto.roiTypeId = dto.roiTypeId.HasValue && dto.roiTypeId.Value > 0 ? dto.roiTypeId.Value : 3;
                 if (string.IsNullOrEmpty(dto.duration)) dto.duration = "12 Months";
 

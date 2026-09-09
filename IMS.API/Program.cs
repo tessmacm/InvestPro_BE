@@ -261,6 +261,20 @@ using (var scope = app.Services.CreateScope())
                     BEGIN
                         ALTER TABLE RoiRanges ADD Status NVARCHAR(50) NOT NULL DEFAULT 'active';
                     END
+
+                    -- Ensure RoiRanges has IDs 1 through 20 so FK constraints on MinRoiRangeId/MaxRoiRangeId are always valid
+                    DECLARE @roi_idx INT = 1;
+                    WHILE @roi_idx <= 20
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM [RoiRanges] WHERE [Id] = @roi_idx)
+                        BEGIN
+                            SET IDENTITY_INSERT [RoiRanges] ON;
+                            INSERT INTO [RoiRanges] ([Id], [Percentage], [DisplayLabel], [Status])
+                            VALUES (@roi_idx, CAST(@roi_idx * 0.01 AS DECIMAL(5,3)), CAST(@roi_idx AS NVARCHAR(10)) + '%', 'active');
+                            SET IDENTITY_INSERT [RoiRanges] OFF;
+                        END
+                        SET @roi_idx = @roi_idx + 1;
+                    END
                 END
 
                 IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'RoiTypes')
