@@ -92,7 +92,8 @@ public class PaymentsController : ControllerBase
                 paymentCycle = cycle,
                 status = p.Status,
                 isSent = p.IsSent,
-                isReceived = p.IsReceived
+                isReceived = p.IsReceived,
+                paymentMadeAt = p.PaymentMadeAt
             };
         }));
     }
@@ -122,7 +123,8 @@ public class PaymentsController : ControllerBase
             paymentCycle = cycle,
             status = p.Status,
             isSent = p.IsSent,
-            isReceived = p.IsReceived
+            isReceived = p.IsReceived,
+            paymentMadeAt = p.PaymentMadeAt
         });
     }
 
@@ -142,10 +144,35 @@ public class PaymentsController : ControllerBase
         var p = await _context.Payments.FindAsync(id);
         if (p == null) return NotFound();
 
+        var now = DateTime.UtcNow;
         p.IsSent = true;
-        p.Status = p.IsReceived ? "Received" : "Sent";
+        p.PaymentMadeAt = now;
+        p.Status = "Received"; // When admin marks Payment Made, it is considered complete/received for the investor
+
+        // Send a notification to investor once "Payment Made?" action is successfully triggered.
+        // Sample message: "A payment [amount] is made for the [month] on the [date with timestamp]"
+        var monthStr = p.PaymentDate.ToString("MMMM yyyy");
+        var timestampStr = now.ToString("dd/MM/yyyy, HH:mm");
+        var adminUserId = User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var adminUserName = User.FindFirst("name")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System Admin";
+
+        var notification = new SystemNotification
+        {
+            Title = "Payment Disbursement",
+            Message = $"A payment £{p.Amount:N2} is made for the {monthStr} on the {timestampStr}",
+            EventType = "Payment Received",
+            InvestorId = p.InvestorId,
+            SenderUserId = adminUserId,
+            SenderName = adminUserName,
+            SenderRole = "admin",
+            CreatedAt = now,
+            IsRead = false,
+            Status = "Active"
+        };
+        _context.SystemNotifications.Add(notification);
+
         await _context.SaveChangesAsync();
-        return Ok(new { success = true, status = p.Status });
+        return Ok(new { success = true, status = p.Status, paymentMadeAt = p.PaymentMadeAt });
     }
 
     [HttpPost("{id}/acknowledge-received")]

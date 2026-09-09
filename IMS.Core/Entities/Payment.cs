@@ -12,4 +12,5 @@ public class Payment
     public string Status { get; set; } = "Pending";
     public bool IsSent { get; set; } = false;
     public bool IsReceived { get; set; } = false;
+    public DateTime? PaymentMadeAt { get; set; }
 }

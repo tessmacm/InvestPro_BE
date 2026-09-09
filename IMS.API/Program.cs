@@ -291,6 +291,14 @@ using (var scope = app.Services.CreateScope())
                     END
                 END
 
+                IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Payments')
+                BEGIN
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Payments' AND COLUMN_NAME = 'PaymentMadeAt')
+                    BEGIN
+                        ALTER TABLE Payments ADD PaymentMadeAt DATETIME2 NULL;
+                    END
+                END
+
                 IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'InvestorDocuments')
                 BEGIN
                     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'InvestorDocuments' AND COLUMN_NAME = 'SignatureData')
