@@ -498,25 +498,25 @@ public class InvestorManagementService : IInvestorManagementService
                 DateTime paymentDate;
                 if (investor.RoiTypeId == 4) // Quarterly
                 {
-                    // 1st Payout = DOB + 45 days + 2 months (~105 days), subsequent = +90 days each
-                    var firstQuarterlyDate = onboardingDate.AddDays(105);
+                    // 1st Payout = DOB + 52 days + 2 months (~112 days), subsequent = +90 days each
+                    var firstQuarterlyDate = onboardingDate.AddDays(112);
                     paymentDate = firstQuarterlyDate.AddDays(i * 90);
                 }
                 else if (investor.RoiTypeId == 6) // Half-Yearly
                 {
-                    // 1st Payout = DOB + 45 days + 5 months (~198 days), subsequent = +180 days each
-                    var firstHalfYearlyDate = onboardingDate.AddDays(198);
+                    // 1st Payout = DOB + 52 days + 5 months (~205 days), subsequent = +180 days each
+                    var firstHalfYearlyDate = onboardingDate.AddDays(205);
                     paymentDate = firstHalfYearlyDate.AddDays(i * 180);
                 }
                 else if (investor.RoiTypeId == 5) // Yearly
                 {
-                    // 1st Payout = DOB + 45 days + 11 months (~365 days)
-                    paymentDate = onboardingDate.AddDays(45).AddMonths(11 + (i * 12));
+                    // 1st Payout = DOB + 52 days + 11 months
+                    paymentDate = onboardingDate.AddDays(52).AddMonths(11 + (i * 12));
                 }
                 else // Monthly (Default RoiTypeId == 3)
                 {
-                    // 1st Payout = DOB + 45 days, subsequent = +30 days each
-                    paymentDate = onboardingDate.AddDays(45 + (i * 30));
+                    // 1st Payout = DOB + 52 days (max date from return period: 45 to 52 days), subsequent = +30 days each
+                    paymentDate = onboardingDate.AddDays(52 + (i * 30));
                 }
 
                 var payment = new Payment
