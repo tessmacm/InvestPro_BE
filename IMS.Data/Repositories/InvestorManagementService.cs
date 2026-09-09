@@ -97,31 +97,44 @@ public class InvestorManagementService : IInvestorManagementService
 
         var results = await query.ToListAsync();
 
-        return results.Select(r => new InvestorSummaryDTO
-        {
-            id = r.Investor.InvestorId ?? 0,
-            name = r.User != null ? (r.User.LastName == "User" || string.IsNullOrWhiteSpace(r.User.LastName) ? r.User.FirstName : $"{r.User.FirstName} {r.User.LastName}".Trim()) : (r.Investor.LegalBusinessName ?? "Investor"),
-            email = r.User?.Email ?? "",
-            mobile = r.User?.PhoneNumber ?? "",
-            type = r.InvestorTypeName ?? "Individual",
-            organization = r.Investor.LegalBusinessName ?? "—",
-            authSingerName = r.Investor.AuthorizedSignerName ?? "Accredited",
-            amount = r.Investor.CapitalAmount ?? 0,
-            reg_number = r.Investor.CompanyRegistrationNo ?? "—",
-            status = (r.User?.IsActive ?? true) ? "active" : "inactive",
-            date_of_onboarding = r.Investor.DateOfBoarding.HasValue ? r.Investor.DateOfBoarding.Value.ToString("yyyy-MM-dd") : (r.User != null ? r.User.CreatedAt.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd")),
-            min_roi_id = r.Investor.MinRoiRangeId,
-            max_roi_id = r.Investor.MaxRoiRangeId,
-            roiTypeId = r.Investor.RoiTypeId,
-            payoutType = r.Investor.PayoutType ?? (r.Investor.RoiTypeId == 1 ? "Fixed" : "Variant"),
-            bank = r.Investor.BankName ?? "—",
-            acNumber = r.Investor.BankAccountNo ?? "—",
-            sortCode = r.Investor.SortCode ?? "—",
-            witness = string.IsNullOrWhiteSpace(r.Investor.Witness) ? null : r.Investor.Witness,
-            address = string.IsNullOrWhiteSpace(r.Investor.Address) ? null : r.Investor.Address,
-            projectId = r.Investor.ProjectId ?? 1,
-            duration = r.Investor.Duration ?? "12 Months",
-            notes = r.Investor.Notes ?? "—"
+        return results.Select(r => {
+            var notes = r.Investor.Notes ?? "—";
+            var fixedMatch = System.Text.RegularExpressions.Regex.Match(notes, @"\[ROI_MODE:FIXED,MIN:([\d.]+),MAX:([\d.]+)\]");
+            var isFixedRoi = fixedMatch.Success;
+            decimal? minRoi = isFixedRoi && decimal.TryParse(fixedMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fMin)
+                ? fMin
+                : r.Investor.MinRoiRangeId;
+            decimal? maxRoi = isFixedRoi && decimal.TryParse(fixedMatch.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fMax)
+                ? fMax
+                : r.Investor.MaxRoiRangeId;
+
+            return new InvestorSummaryDTO
+            {
+                id = r.Investor.InvestorId ?? 0,
+                name = r.User != null ? (r.User.LastName == "User" || string.IsNullOrWhiteSpace(r.User.LastName) ? r.User.FirstName : $"{r.User.FirstName} {r.User.LastName}".Trim()) : (r.Investor.LegalBusinessName ?? "Investor"),
+                email = r.User?.Email ?? "",
+                mobile = r.User?.PhoneNumber ?? "",
+                type = r.InvestorTypeName ?? "Individual",
+                organization = r.Investor.LegalBusinessName ?? "—",
+                authSingerName = r.Investor.AuthorizedSignerName ?? "Accredited",
+                amount = r.Investor.CapitalAmount ?? 0,
+                reg_number = r.Investor.CompanyRegistrationNo ?? "—",
+                status = (r.User?.IsActive ?? true) ? "active" : "inactive",
+                date_of_onboarding = r.Investor.DateOfBoarding.HasValue ? r.Investor.DateOfBoarding.Value.ToString("yyyy-MM-dd") : (r.User != null ? r.User.CreatedAt.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd")),
+                min_roi_id = minRoi,
+                max_roi_id = maxRoi,
+                roiTypeId = r.Investor.RoiTypeId,
+                payoutType = r.Investor.PayoutType ?? (r.Investor.RoiTypeId == 1 ? "Fixed" : "Variant"),
+                bank = r.Investor.BankName ?? "—",
+                acNumber = r.Investor.BankAccountNo ?? "—",
+                sortCode = r.Investor.SortCode ?? "—",
+                witness = string.IsNullOrWhiteSpace(r.Investor.Witness) ? null : r.Investor.Witness,
+                address = string.IsNullOrWhiteSpace(r.Investor.Address) ? null : r.Investor.Address,
+                projectId = r.Investor.ProjectId ?? 1,
+                duration = r.Investor.Duration ?? "12 Months",
+                notes = notes,
+                roiUnit = isFixedRoi ? "fixed" : "percent"
+            };
         }).ToList();
     }
 
@@ -135,6 +148,17 @@ public class InvestorManagementService : IInvestorManagementService
             .FirstOrDefaultAsync(i => i.InvestorId == investorId);
         if (investor == null) return null;
         var user = await _userManager.FindByIdAsync(investor.OwnerUserId!);
+
+        var notes = investor.Notes ?? "";
+        var fixedMatch = System.Text.RegularExpressions.Regex.Match(notes, @"\[ROI_MODE:FIXED,MIN:([\d.]+),MAX:([\d.]+)\]");
+        var isFixedRoi = fixedMatch.Success;
+        decimal? minRoi = isFixedRoi && decimal.TryParse(fixedMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fMin)
+            ? fMin
+            : investor.MinRoiRangeId;
+        decimal? maxRoi = isFixedRoi && decimal.TryParse(fixedMatch.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fMax)
+            ? fMax
+            : investor.MaxRoiRangeId;
+
         return new InvestorDetailsDTO
         {
             id = investor.InvestorId ?? 0,
@@ -150,8 +174,8 @@ public class InvestorManagementService : IInvestorManagementService
             date_of_onboarding = investor.DateOfBoarding.HasValue 
                 ? investor.DateOfBoarding.Value.ToString("yyyy-MM-dd") 
                 : (user != null ? user.CreatedAt.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd")),
-            min_roi_id = investor.MinRoiRangeId,
-            max_roi_id = investor.MaxRoiRangeId,
+            min_roi_id = minRoi,
+            max_roi_id = maxRoi,
             roiTypeId = investor.RoiTypeId,
             payoutType = investor.PayoutType ?? (investor.RoiTypeId == 1 ? "Fixed" : "Variant"),
             bank = investor.BankName,
@@ -161,7 +185,8 @@ public class InvestorManagementService : IInvestorManagementService
             address = investor.Address,
             projectId = investor.ProjectId ?? 1,
             duration = investor.Duration ?? "12 Months",
-            notes = investor.Notes
+            notes = investor.Notes,
+            roiUnit = isFixedRoi ? "fixed" : "percent"
         };
     }
 
@@ -390,21 +415,46 @@ public class InvestorManagementService : IInvestorManagementService
 
     private async Task GeneratePaymentsForInvestorAsync(Investor investor, decimal? explicitMinRoi = null, decimal? explicitMaxRoi = null)
     {
-        // Resolve Min ROI and Max ROI integers (e.g. 1% to 10%)
-        decimal minRoi = explicitMinRoi.HasValue && explicitMinRoi.Value > 0
-            ? explicitMinRoi.Value
-            : (investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0 ? investor.MinRoiRangeId.Value : 3m);
+        var notes = investor.Notes ?? "";
+        var fixedMatch = System.Text.RegularExpressions.Regex.Match(notes, @"\[ROI_MODE:FIXED,MIN:([\d.]+),MAX:([\d.]+)\]");
+        var isFixedRoi = fixedMatch.Success;
 
-        decimal maxRoi = explicitMaxRoi.HasValue && explicitMaxRoi.Value > 0
-            ? explicitMaxRoi.Value
-            : (investor.MaxRoiRangeId.HasValue && investor.MaxRoiRangeId.Value > 0 ? investor.MaxRoiRangeId.Value : minRoi);
+        decimal minRoi;
+        decimal maxRoi;
 
-        // Month Due = ((Min ROI + Max ROI)/2)% of the invested amount with no round-offs
-        decimal avgRoiPercent = (minRoi + maxRoi) / 2m;
-        decimal monthlyRoiRate = avgRoiPercent / 100m;
+        if (isFixedRoi && decimal.TryParse(fixedMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fMin)
+            && decimal.TryParse(fixedMatch.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fMax))
+        {
+            minRoi = fMin;
+            maxRoi = fMax;
+        }
+        else
+        {
+            // Resolve Min ROI and Max ROI integers (e.g. 1% to 10%)
+            minRoi = explicitMinRoi.HasValue && explicitMinRoi.Value > 0
+                ? explicitMinRoi.Value
+                : (investor.MinRoiRangeId.HasValue && investor.MinRoiRangeId.Value > 0 ? investor.MinRoiRangeId.Value : 3m);
+
+            maxRoi = explicitMaxRoi.HasValue && explicitMaxRoi.Value > 0
+                ? explicitMaxRoi.Value
+                : (investor.MaxRoiRangeId.HasValue && investor.MaxRoiRangeId.Value > 0 ? investor.MaxRoiRangeId.Value : minRoi);
+        }
 
         decimal capital = investor.CapitalAmount ?? 0m;
-        decimal monthDue = Math.Round(capital * monthlyRoiRate, 2);
+        decimal monthDue;
+
+        if (isFixedRoi)
+        {
+            // When fixed: Month Due = (minRoi + maxRoi) / 2 directly without percentage calculation
+            monthDue = Math.Round((minRoi + maxRoi) / 2m, 2);
+        }
+        else
+        {
+            // Month Due = ((Min ROI + Max ROI)/2)% of the invested amount with no round-offs
+            decimal avgRoiPercent = (minRoi + maxRoi) / 2m;
+            decimal monthlyRoiRate = avgRoiPercent / 100m;
+            monthDue = Math.Round(capital * monthlyRoiRate, 2);
+        }
 
         // Parse investment duration in months (default 12)
         int durationMonths = 12;

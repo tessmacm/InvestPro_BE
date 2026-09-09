@@ -41,6 +41,7 @@ public class InvestorSummaryDTO
     public int? projectId { get; set; }
     public string? duration { get; set; }
     public string? notes { get; set; }
+    public string? roiUnit { get; set; }
 }
 
 public class InvestorDetailsDTO
@@ -68,6 +69,7 @@ public class InvestorDetailsDTO
     public int? projectId { get; set; }
     public string? duration { get; set; }
     public string? notes { get; set; }
+    public string? roiUnit { get; set; }
 }
 public class CreateInvestorProfileDTO
 {
@@ -107,6 +109,7 @@ public class UpdateInvestorDetailsDTO
     public int? projectId { get; set; }
     public string? duration { get; set; }
     public string? notes { get; set; }
+    public string? roiUnit { get; set; }
 }
 public class RegisterInvestorDTO
 {
@@ -137,6 +140,7 @@ public class RegisterInvestorDTO
     public int? projectId { get; set; }
     public string? duration { get; set; }
     public string? notes { get; set; } 
+    public string? roiUnit { get; set; }
 }
 public class InvestorRegistrationResponse
 {
