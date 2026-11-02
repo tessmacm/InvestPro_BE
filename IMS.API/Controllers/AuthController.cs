@@ -614,6 +614,18 @@ namespace IMS.API.Controllers
 
             await _userManager.AddToRoleAsync(newUser, assignedRole);
 
+            // Send WhatsApp welcome message via approved template
+            try
+            {
+                var defaultPhone = _configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919392595905";
+                var regFullName = $"{regData.FirstName} {regData.LastName}".Trim();
+                await _whatsAppService.SendRegistrationWelcomeAsync(defaultPhone, regFullName, model.Email);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WhatsAppService WARNING] Failed to send registration welcome template: {ex.Message}");
+            }
+
             var admins = await _userManager.GetUsersInRoleAsync("admin");
             foreach (var sa in admins)
             {

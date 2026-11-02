@@ -115,12 +115,126 @@ public class WhatsAppService : IWhatsAppService
         }
     }
 
-    public Task<bool> SendOtpAsync(string toPhoneNumber, string otp, string purpose = "verification")
+    public async Task<bool> SendTemplateAsync(string toPhoneNumber, string templateName, string languageCode, object[] components)
     {
+        var cleanedPhone = NormalizePhoneNumber(toPhoneNumber);
+        if (string.IsNullOrWhiteSpace(cleanedPhone))
+        {
+            _logger.LogWarning("[WhatsApp] Cannot send template: recipient phone number is empty.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_settings.Token) || string.IsNullOrWhiteSpace(_settings.PhoneNumberId))
+        {
+            _logger.LogWarning("[WhatsApp] WhatsApp settings are not configured.");
+            return false;
+        }
+
+        var endpoint = $"https://graph.facebook.com/{_settings.GraphVersion}/{_settings.PhoneNumberId}/messages";
+
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            recipient_type = "individual",
+            to = cleanedPhone,
+            type = "template",
+            template = new
+            {
+                name = templateName,
+                language = new { code = languageCode },
+                components
+            }
+        };
+
+        try
+        {
+            var json = JsonSerializer.Serialize(payload);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.Token);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("[WhatsApp] Template {Template} sent successfully to {Phone}: {Response}", templateName, cleanedPhone, responseContent);
+                return true;
+            }
+            else
+            {
+                _logger.LogError("[WhatsApp] Failed to send template {Template} to {Phone}. Status: {Status}, Details: {Response}", 
+                    templateName, cleanedPhone, response.StatusCode, responseContent);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WhatsApp] Exception while sending template {Template} to {Phone}", templateName, cleanedPhone);
+            return false;
+        }
+    }
+
+    public async Task<bool> SendOtpAsync(string toPhoneNumber, string otp, string purpose = "verification")
+    {
+        // 1. First attempt sending via approved Meta AUTHENTICATION template: account_login_alert
+        var components = new object[]
+        {
+            new
+            {
+                type = "body",
+                parameters = new object[]
+                {
+                    new { type = "text", text = otp }
+                }
+            },
+            new
+            {
+                type = "button",
+                sub_type = "url",
+                index = "0",
+                parameters = new object[]
+                {
+                    new { type = "text", text = otp }
+                }
+            }
+        };
+
+        var templateSent = await SendTemplateAsync(toPhoneNumber, "account_login_alert", "en", components);
+        if (templateSent) return true;
+
+        // 2. Fallback to direct custom text message if template fails
+        _logger.LogWarning("[WhatsApp] Template dispatch failed, falling back to direct text message for OTP.");
         var message = $"🔒 *InvestPro {purpose.ToUpperInvariant()} CODE*\n\n" +
                       $"Your one-time code is: *{otp}*\n\n" +
                       $"This code is valid for 10 minutes. Do not share this OTP with anyone for your account security.";
-        return SendTextMessageAsync(toPhoneNumber, message);
+        return await SendTextMessageAsync(toPhoneNumber, message);
+    }
+
+    public async Task<bool> SendRegistrationWelcomeAsync(string toPhoneNumber, string name, string email)
+    {
+        // 1. Attempt sending via approved UTILITY template: account_registration_success
+        var components = new object[]
+        {
+            new
+            {
+                type = "body",
+                parameters = new object[]
+                {
+                    new { type = "text", text = name },
+                    new { type = "text", text = email }
+                }
+            }
+        };
+
+        var templateSent = await SendTemplateAsync(toPhoneNumber, "account_registration_success", "en", components);
+        if (templateSent) return true;
+
+        // 2. Fallback to direct custom text message
+        var message = $"👋 *Welcome to InvestPro / Tessma*\n\n" +
+                      $"Hi {name}, your account has been successfully created with email: {email}.\n\n" +
+                      $"Thank you for joining our platform!";
+        return await SendTextMessageAsync(toPhoneNumber, message);
     }
 
     public Task<bool> SendPayoutNotificationAsync(string toPhoneNumber, string investorName, decimal amount, string month, string date)
