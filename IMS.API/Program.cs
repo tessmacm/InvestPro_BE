@@ -134,6 +134,10 @@ builder.Services.AddScoped<IUnitOfWork,UnitOfWork>();
 // Service Registration goes here
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IEmailService, EmailService>();
+
+builder.Services.Configure<IMS.API.Services.WhatsApp.WhatsAppSettings>(builder.Configuration.GetSection("WhatsAppSettings"));
+builder.Services.AddHttpClient<IMS.API.Services.WhatsApp.IWhatsAppService, IMS.API.Services.WhatsApp.WhatsAppService>();
+
 builder.Services.AddScoped<IAdminManagementService, AdminManagementService>();
 builder.Services.AddScoped<IInvestorManagementService, InvestorManagementService>();
 builder.Services.AddScoped<IInvestorDocumentService, InvestorDocumentService>();

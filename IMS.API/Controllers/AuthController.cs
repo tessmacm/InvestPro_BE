@@ -29,6 +29,7 @@ namespace IMS.API.Controllers
         UserManager<ApplicationUser>? _userManager;
         SignInManager<ApplicationUser>? _signInManager;
         IEmailService _emailService;
+        IMS.API.Services.WhatsApp.IWhatsAppService _whatsAppService;
         IUnitOfWork _unitOfWork;
         IConfiguration _configuration;
         IInvestorManagementService _investorManagementService;
@@ -36,6 +37,7 @@ namespace IMS.API.Controllers
         public AuthController(UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IEmailService emailService,
+            IMS.API.Services.WhatsApp.IWhatsAppService whatsAppService,
             IUnitOfWork unitOfWork,
             IConfiguration configuration,
             IInvestorManagementService investorManagementService)
@@ -43,6 +45,7 @@ namespace IMS.API.Controllers
             _userManager = userManager;
             _signInManager = signInManager;
             _emailService = emailService;
+            _whatsAppService = whatsAppService;
             _unitOfWork = unitOfWork;
             _configuration = configuration;
             _investorManagementService = investorManagementService;
@@ -413,6 +416,20 @@ namespace IMS.API.Controllers
                 Console.WriteLine($"[EmailService WARNING] Could not send email to {user.Email}: {ex.Message}");
             }
 
+            // WhatsApp Notification for Login OTP
+            try
+            {
+                var phone = !string.IsNullOrWhiteSpace(user.PhoneNumber) 
+                    ? user.PhoneNumber 
+                    : (_configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404");
+
+                await _whatsAppService.SendOtpAsync(phone, otp, "login");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WhatsAppService WARNING] Could not send WhatsApp OTP to {user.Email}: {ex.Message}");
+            }
+
             return Ok(new
             {
                 Message = emailSentSuccessfully
@@ -533,6 +550,17 @@ namespace IMS.API.Controllers
             catch (Exception ex)
             {
                 Console.WriteLine($"[EmailService] Failed to send registration OTP to {model.Email}: {ex.Message}");
+            }
+
+            // WhatsApp Notification for Registration OTP
+            try
+            {
+                var defaultPhone = _configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404";
+                await _whatsAppService.SendOtpAsync(defaultPhone, otp, "registration");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WhatsAppService WARNING] Failed to send registration WhatsApp OTP to {model.Email}: {ex.Message}");
             }
 
             return Ok(new { Message = "OTP sent successfully" });

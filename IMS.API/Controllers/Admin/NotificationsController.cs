@@ -16,10 +16,17 @@ namespace IMS.API.Controllers.Admin;
 public class NotificationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IMS.API.Services.WhatsApp.IWhatsAppService _whatsAppService;
+    private readonly IConfiguration _configuration;
 
-    public NotificationsController(ApplicationDbContext context)
+    public NotificationsController(
+        ApplicationDbContext context,
+        IMS.API.Services.WhatsApp.IWhatsAppService whatsAppService,
+        IConfiguration configuration)
     {
         _context = context;
+        _whatsAppService = whatsAppService;
+        _configuration = configuration;
     }
 
     private string? GetCurrentUserId()
@@ -340,6 +347,34 @@ public class NotificationsController : ControllerBase
 
         _context.SystemNotifications.Add(model);
         await _context.SaveChangesAsync();
+
+        // Dispatch WhatsApp notification to target recipient or default number
+        try
+        {
+            var defaultPhone = _configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404";
+            string? targetPhone = null;
+
+            if (model.InvestorId.HasValue)
+            {
+                var inv = await _context.Investors.FirstOrDefaultAsync(i => i.InvestorId == model.InvestorId);
+                if (inv != null && !string.IsNullOrEmpty(inv.OwnerUserId))
+                {
+                    var u = await _context.Users.FindAsync(inv.OwnerUserId);
+                    if (!string.IsNullOrWhiteSpace(u?.PhoneNumber))
+                    {
+                        targetPhone = u.PhoneNumber;
+                    }
+                }
+            }
+
+            var phoneToSend = !string.IsNullOrWhiteSpace(targetPhone) ? targetPhone : defaultPhone;
+            await _whatsAppService.SendGeneralNotificationAsync(phoneToSend, model.Title ?? "System Notification", model.Message ?? "");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[WhatsAppService WARNING] Failed to send WhatsApp notification: {ex.Message}");
+        }
+
         return CreatedAtAction(nameof(GetById), new { id = model.Id }, model);
     }
 

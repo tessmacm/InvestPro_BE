@@ -16,10 +16,17 @@ namespace IMS.API.Controllers.Admin;
 public class PaymentsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IMS.API.Services.WhatsApp.IWhatsAppService _whatsAppService;
+    private readonly IConfiguration _configuration;
 
-    public PaymentsController(ApplicationDbContext context)
+    public PaymentsController(
+        ApplicationDbContext context,
+        IMS.API.Services.WhatsApp.IWhatsAppService whatsAppService,
+        IConfiguration configuration)
     {
         _context = context;
+        _whatsAppService = whatsAppService;
+        _configuration = configuration;
     }
 
     [HttpGet]
@@ -172,6 +179,32 @@ public class PaymentsController : ControllerBase
         _context.SystemNotifications.Add(notification);
 
         await _context.SaveChangesAsync();
+
+        // Dispatch WhatsApp notification to investor
+        try
+        {
+            var investor = await _context.Investors.FirstOrDefaultAsync(i => i.InvestorId == p.InvestorId);
+            ApplicationUser? investorUser = null;
+            if (investor != null && !string.IsNullOrEmpty(investor.OwnerUserId))
+            {
+                investorUser = await _context.Users.FindAsync(investor.OwnerUserId);
+            }
+
+            var investorName = investorUser != null && !string.IsNullOrWhiteSpace($"{investorUser.FirstName} {investorUser.LastName}")
+                ? $"{investorUser.FirstName} {investorUser.LastName}".Trim()
+                : (investor?.LegalBusinessName ?? "Valued Investor");
+
+            var phone = !string.IsNullOrWhiteSpace(investorUser?.PhoneNumber)
+                ? investorUser.PhoneNumber
+                : (_configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404");
+
+            await _whatsAppService.SendPayoutNotificationAsync(phone, investorName, p.Amount, monthStr, timestampStr);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[WhatsAppService WARNING] Failed to send payout WhatsApp notification: {ex.Message}");
+        }
+
         return Ok(new { success = true, status = p.Status, paymentMadeAt = p.PaymentMadeAt });
     }
 
