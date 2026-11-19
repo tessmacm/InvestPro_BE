@@ -70,10 +70,32 @@ namespace IMS.API.Controllers
 
                     var confirmationLink = $"{frontendUrl}/register-verify?userId={response.UserId}&token={response.VerificationToken}";
 
-                    await _emailService.SendEmailAsync(
-                        response.Email!,
-                        "Email Confirmation",
-                        $"Please confirm your email by clicking on the link: {confirmationLink}");
+                    try
+                    {
+                        await _emailService.SendEmailAsync(
+                            response.Email!,
+                            "Email Confirmation",
+                            $"Please confirm your email by clicking on the link: {confirmationLink}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[EmailService WARNING] Failed to send email confirmation: {ex.Message}");
+                    }
+
+                    // Dispatch WhatsApp registration welcome notification
+                    try
+                    {
+                        var fullName = string.IsNullOrWhiteSpace(response.FullName) ? registerModel.name ?? "Investor" : response.FullName;
+                        var phone = !string.IsNullOrWhiteSpace(registerModel.mobile)
+                            ? registerModel.mobile
+                            : (_configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404");
+
+                        await _whatsAppService.SendRegistrationWelcomeAsync(phone, fullName, response.Email!);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[WhatsAppService WARNING] Failed to send registration welcome WhatsApp notification: {ex.Message}");
+                    }
 
 
                     return Ok(new
@@ -617,7 +639,7 @@ namespace IMS.API.Controllers
             // Send WhatsApp welcome message via approved template
             try
             {
-                var defaultPhone = _configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919392595905";
+                var defaultPhone = _configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404";
                 var regFullName = $"{regData.FirstName} {regData.LastName}".Trim();
                 await _whatsAppService.SendRegistrationWelcomeAsync(defaultPhone, regFullName, model.Email);
             }

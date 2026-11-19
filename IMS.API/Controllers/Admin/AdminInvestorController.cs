@@ -19,14 +19,20 @@ namespace IMS.API.Controllers.Admin
         private readonly IInvestorManagementService _investorService;
         private readonly IEmailService _emailService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IMS.API.Services.WhatsApp.IWhatsAppService _whatsAppService;
+        private readonly IConfiguration _configuration;
 
         public AdminInvestorController(IInvestorManagementService investorService,
             IEmailService emailService,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            IMS.API.Services.WhatsApp.IWhatsAppService whatsAppService,
+            IConfiguration configuration)
         {
             _investorService = investorService;
             _emailService = emailService;
             _userManager = userManager;
+            _whatsAppService = whatsAppService;
+            _configuration = configuration;
         }
 
         // GET: api/admin/investors
@@ -122,6 +128,21 @@ namespace IMS.API.Controllers.Admin
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[EmailService WARNING] Could not send welcome email with agreement attachment to {response.Email}: {ex.Message}");
+                }
+
+                // Dispatch WhatsApp welcome notification to newly registered investor
+                try
+                {
+                    var fullName = string.IsNullOrWhiteSpace(response.FullName) ? regCreateDto.name ?? "Investor" : response.FullName;
+                    var phone = !string.IsNullOrWhiteSpace(regCreateDto.mobile)
+                        ? regCreateDto.mobile
+                        : (_configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404");
+
+                    await _whatsAppService.SendRegistrationWelcomeAsync(phone, fullName, response.Email);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WhatsAppService WARNING] Failed to send registration welcome WhatsApp notification: {ex.Message}");
                 }
             }
 

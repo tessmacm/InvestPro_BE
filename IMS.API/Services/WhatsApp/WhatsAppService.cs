@@ -53,6 +53,13 @@ public class WhatsAppService : IWhatsAppService
         if (string.IsNullOrWhiteSpace(phone)) return string.Empty;
         // Strip +, spaces, dashes, parentheses
         var clean = Regex.Replace(phone, @"[^\d]", "");
+
+        // If a 10-digit Indian number is provided without 91 country code, prepend 91
+        if (clean.Length == 10)
+        {
+            clean = "91" + clean;
+        }
+
         return clean;
     }
 
@@ -237,13 +244,34 @@ public class WhatsAppService : IWhatsAppService
         return await SendTextMessageAsync(toPhoneNumber, message);
     }
 
-    public Task<bool> SendPayoutNotificationAsync(string toPhoneNumber, string investorName, decimal amount, string month, string date)
+    public async Task<bool> SendPayoutNotificationAsync(string toPhoneNumber, string investorName, decimal amount, string month, string date)
     {
+        // 1. Attempt sending via approved UTILITY template: payment_success_notice
+        // Template body: "Hi {{1}}, A Payout of {{2}} has been successfully recorded against your investment (Ref: {{3}}) at {{4}}. Thank you for your business."
+        var components = new object[]
+        {
+            new
+            {
+                type = "body",
+                parameters = new object[]
+                {
+                    new { type = "text", text = investorName },
+                    new { type = "text", text = $"£{amount:N2}" },
+                    new { type = "text", text = $"Payout - {month}" },
+                    new { type = "text", text = date }
+                }
+            }
+        };
+
+        var templateSent = await SendTemplateAsync(toPhoneNumber, "payment_success_notice", "en", components);
+        if (templateSent) return true;
+
+        // 2. Fallback to direct text message
         var message = $"💰 *InvestPro Payout Confirmation*\n\n" +
                       $"Dear {investorName},\n\n" +
                       $"We are pleased to inform you that your payout of *£{amount:N2}* for *{month}* has been successfully processed on *{date}*.\n\n" +
                       $"Thank you for investing with InvestPro.";
-        return SendTextMessageAsync(toPhoneNumber, message);
+        return await SendTextMessageAsync(toPhoneNumber, message);
     }
 
     public Task<bool> SendGeneralNotificationAsync(string toPhoneNumber, string title, string message)
