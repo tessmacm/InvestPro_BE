@@ -79,6 +79,14 @@ public class PaymentsController : ControllerBase
         // Preload users for O(1) in-memory lookup
         var usersDict = await _context.Users.AsNoTracking().ToDictionaryAsync(u => u.Id, u => u);
 
+        // Preload signed agreement documents by investorId
+        var signedInvestorIds = await _context.InvestorDocuments.AsNoTracking()
+            .Where(d => d.Status == "Signed" || d.Status == "Approved")
+            .Select(d => d.InvestorId)
+            .Distinct()
+            .ToListAsync();
+        var signedInvestorSet = new HashSet<int>(signedInvestorIds);
+
         return Ok(list.Select(p => {
             var inv = p.InvestorNav;
             var user = inv != null && !string.IsNullOrEmpty(inv.OwnerUserId) && usersDict.TryGetValue(inv.OwnerUserId, out var u) ? u : null;
@@ -86,6 +94,12 @@ public class PaymentsController : ControllerBase
             if (string.IsNullOrEmpty(name)) name = inv?.LegalBusinessName ?? "Investor";
 
             var cycle = inv?.PayoutType == "Fixed" || inv?.RoiTypeId == 1 ? "Constant" : (inv?.RoiTypeId == 2 ? "Weekly" : (inv?.RoiTypeId == 4 ? "Quarterly" : (inv?.RoiTypeId == 6 ? "Half-Yearly" : (inv?.RoiTypeId == 5 ? "Yearly" : "Monthly"))));
+
+            // Investor must have active user account AND signed agreement
+            var isUserActive = user?.IsActive ?? true;
+            var isSigned = (inv != null && inv.IsAgreedToTerms == true) || signedInvestorSet.Contains(p.InvestorId);
+            var isInvestorActiveSigned = isUserActive && isSigned;
+            var investorStatus = !isUserActive ? "inactive" : (isSigned ? "active_signed" : "active_unsigned");
 
             return new {
                 paymentId = p.PaymentId,
@@ -100,7 +114,9 @@ public class PaymentsController : ControllerBase
                 status = p.Status,
                 isSent = p.IsSent,
                 isReceived = p.IsReceived,
-                paymentMadeAt = p.PaymentMadeAt
+                paymentMadeAt = p.PaymentMadeAt,
+                isInvestorActiveSigned = isInvestorActiveSigned,
+                investorStatus = investorStatus
             };
         }));
     }
@@ -118,6 +134,13 @@ public class PaymentsController : ControllerBase
 
         var cycle = inv?.PayoutType == "Fixed" || inv?.RoiTypeId == 1 ? "Constant" : (inv?.RoiTypeId == 2 ? "Weekly" : (inv?.RoiTypeId == 4 ? "Quarterly" : (inv?.RoiTypeId == 5 ? "Yearly" : "Monthly")));
 
+        var isSignedDoc = await _context.InvestorDocuments.AsNoTracking()
+            .AnyAsync(d => d.InvestorId == p.InvestorId && (d.Status == "Signed" || d.Status == "Approved"));
+        var isUserActive = user?.IsActive ?? true;
+        var isSigned = (inv != null && inv.IsAgreedToTerms == true) || isSignedDoc;
+        var isInvestorActiveSigned = isUserActive && isSigned;
+        var investorStatus = !isUserActive ? "inactive" : (isSigned ? "active_signed" : "active_unsigned");
+
         return Ok(new {
             paymentId = p.PaymentId,
             investorId = p.InvestorId,
@@ -131,7 +154,9 @@ public class PaymentsController : ControllerBase
             status = p.Status,
             isSent = p.IsSent,
             isReceived = p.IsReceived,
-            paymentMadeAt = p.PaymentMadeAt
+            paymentMadeAt = p.PaymentMadeAt,
+            isInvestorActiveSigned = isInvestorActiveSigned,
+            investorStatus = investorStatus
         });
     }
 
@@ -148,8 +173,37 @@ public class PaymentsController : ControllerBase
     [Authorize(Policy = "ElevatedOrManager")]
     public async Task<IActionResult> AcknowledgeSent(int id)
     {
-        var p = await _context.Payments.FindAsync(id);
+        var p = await _context.Payments.Include(x => x.InvestorNav).FirstOrDefaultAsync(x => x.PaymentId == id);
         if (p == null) return NotFound();
+
+        // Enforce: Investor must be Signed - Active before initiating payout
+        var investor = p.InvestorNav ?? await _context.Investors.FirstOrDefaultAsync(i => i.InvestorId == p.InvestorId);
+        if (investor == null)
+        {
+            return BadRequest(new { message = "Associated investor profile not found." });
+        }
+
+        ApplicationUser? investorUser = null;
+        if (!string.IsNullOrEmpty(investor.OwnerUserId))
+        {
+            investorUser = await _context.Users.FindAsync(investor.OwnerUserId);
+        }
+
+        // 1. Account must be Active
+        if (investorUser != null && investorUser.IsActive == false)
+        {
+            return BadRequest(new { message = "Payment payout cannot be initiated. The investor account is currently inactive." });
+        }
+
+        // 2. Agreement must be Signed
+        var isSignedDoc = await _context.InvestorDocuments.AsNoTracking()
+            .AnyAsync(d => d.InvestorId == p.InvestorId && (d.Status == "Signed" || d.Status == "Approved"));
+        var isAgreementSigned = investor.IsAgreedToTerms == true || isSignedDoc;
+
+        if (!isAgreementSigned)
+        {
+            return BadRequest(new { message = "Payment payout cannot be initiated. Investor agreement must be signed before payouts can be disbursed." });
+        }
 
         var now = DateTime.UtcNow;
         p.IsSent = true;
@@ -183,13 +237,6 @@ public class PaymentsController : ControllerBase
         // Dispatch WhatsApp notification to investor
         try
         {
-            var investor = await _context.Investors.FirstOrDefaultAsync(i => i.InvestorId == p.InvestorId);
-            ApplicationUser? investorUser = null;
-            if (investor != null && !string.IsNullOrEmpty(investor.OwnerUserId))
-            {
-                investorUser = await _context.Users.FindAsync(investor.OwnerUserId);
-            }
-
             var investorName = investorUser != null && !string.IsNullOrWhiteSpace($"{investorUser.FirstName} {investorUser.LastName}")
                 ? $"{investorUser.FirstName} {investorUser.LastName}".Trim()
                 : (investor?.LegalBusinessName ?? "Valued Investor");

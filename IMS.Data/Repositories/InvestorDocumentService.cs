@@ -233,6 +233,17 @@ public class InvestorDocumentService : IInvestorDocumentService
         document.SignatureData = signature;
         document.Status = "Signed";
         document.SignedAt = DateTime.UtcNow;
+
+        // When the agreement document is signed, mark the corresponding Investor entity's IsAgreedToTerms = true
+        if (document.InvestorId > 0)
+        {
+            var investor = await _context.Investors.FindAsync(document.InvestorId);
+            if (investor != null)
+            {
+                investor.IsAgreedToTerms = true;
+            }
+        }
+
         await _context.SaveChangesAsync();
         return true;
     }
@@ -244,6 +255,17 @@ public class InvestorDocumentService : IInvestorDocumentService
         document.SignatureData = null;
         document.Status = "Pending Signature";
         document.SignedAt = null;
+
+        // When the agreement document signature is reset, mark the corresponding Investor entity's IsAgreedToTerms = false
+        if (document.InvestorId > 0)
+        {
+            var investor = await _context.Investors.FindAsync(document.InvestorId);
+            if (investor != null)
+            {
+                investor.IsAgreedToTerms = false;
+            }
+        }
+
         await _context.SaveChangesAsync();
         return true;
     }
