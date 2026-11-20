@@ -302,6 +302,62 @@ namespace IMS.API.Controllers.Admin
                 if (response.IsSuccess)
                 {
                     createdCount++;
+
+                    // Send email welcome with agreement attachment
+                    if (!string.IsNullOrEmpty(response.Email))
+                    {
+                        var otp = Random.Shared.Next(100000, 999999).ToString();
+                        var expiry = DateTime.UtcNow.AddMinutes(10);
+                        AuthController._loginOtps[response.Email.ToLowerInvariant()] = (otp, expiry);
+
+                        try
+                        {
+                            var fullName = string.IsNullOrWhiteSpace(response.FullName) ? dto.name ?? "Investor" : response.FullName;
+                            var (pdfBytes, fileName) = await GetAgreementPdfBytesAsync(response.InvestorId, fullName);
+
+                            var subject = "Welcome to InvestPro - Your Investment Agreement (Unsigned)";
+                            var body = $@"
+                                <div style=""font-family: Arial, sans-serif; color: #333; line-height: 1.6;"">
+                                    <h2 style=""color: #1e3a8a;"">Welcome to InvestPro!</h2>
+                                    <p>Dear <strong>{fullName}</strong>,</p>
+                                    <p>Welcome to InvestPro! Your investor profile has been created successfully via bulk onboarding.</p>
+                                    <p>Attached to this email is your <strong>Investment Agreement (Unsigned Draft)</strong> for your review.</p>
+                                    <p>You can log into the InvestPro platform using your registered email address (<strong>{response.Email}</strong>) to review and digitally sign your agreement.</p>
+                                    <p style=""background-color: #f1f5f9; padding: 12px; border-radius: 8px; font-weight: bold; color: #1e293b;"">
+                                        Your login OTP verification code is: <span style=""color: #2563eb; font-size: 18px;"">{otp}</span> (valid for 10 minutes)
+                                    </p>
+                                    <br/>
+                                    <p>Best regards,<br/><strong>InvestPro Team</strong></p>
+                                </div>";
+
+                            await _emailService.SendEmailWithAttachmentAsync(
+                                response.Email,
+                                subject,
+                                body,
+                                fileName,
+                                pdfBytes
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[EmailService WARNING] Could not send welcome email with agreement attachment to {response.Email}: {ex.Message}");
+                        }
+
+                        // Send WhatsApp welcome message
+                        try
+                        {
+                            var fullName = string.IsNullOrWhiteSpace(response.FullName) ? dto.name ?? "Investor" : response.FullName;
+                            var phone = !string.IsNullOrWhiteSpace(dto.mobile)
+                                ? dto.mobile
+                                : (_configuration["WhatsAppSettings:DefaultRecipientNumber"] ?? "+919885255404");
+
+                            await _whatsAppService.SendRegistrationWelcomeAsync(phone, fullName, response.Email);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[WhatsAppService WARNING] Failed to send bulk registration welcome WhatsApp: {ex.Message}");
+                        }
+                    }
                 }
                 else
                 {

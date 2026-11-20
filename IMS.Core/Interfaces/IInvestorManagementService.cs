@@ -113,6 +113,7 @@ public class UpdateInvestorDetailsDTO
 }
 public class RegisterInvestorDTO
 {
+    public bool? allowExistingUser { get; set; }
     public string? name { get; set; }
     public int? type { get; set; } 
     [EmailAddress(ErrorMessage = "Invalid email format.")]

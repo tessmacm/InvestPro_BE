@@ -190,31 +190,75 @@ public class InvestorManagementService : IInvestorManagementService
         };
     }
 
+    private static string NormalizePhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return string.Empty;
+        var clean = System.Text.RegularExpressions.Regex.Replace(phone, @"[^\d]", "");
+        if (clean.Length == 10)
+        {
+            clean = "91" + clean;
+        }
+        return clean;
+    }
+
     public async Task<InvestorRegistrationResponse> RegisterAndCreateInvestorAsync(RegisterInvestorDTO dto)
     {
         var names = (dto.name ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var firstName = names.FirstOrDefault() ?? "Investor";
         var lastName = names.Length > 1 ? string.Join(" ", names.Skip(1)) : "";
 
-        // Step 1: Check if user already exists
+        var inputEmail = (dto.email ?? "").Trim().ToLowerInvariant();
+        var inputCleanPhone = NormalizePhone(dto.mobile);
+
+        // Step 1: Check if user already exists by email
         ApplicationUser identityUser;
         var existingUser = await _userManager.FindByEmailAsync(dto.email!);
 
         if (existingUser != null)
         {
-            // Existing user account found -> Attach additional or new investment profile to this existing user!
-            identityUser = existingUser;
-            if (!string.IsNullOrEmpty(firstName) && firstName != "Investor")
+            // If caller explicitly allowed existing user (e.g. Admin selected "Select Existing Investor")
+            if (dto.allowExistingUser == true)
             {
-                identityUser.FirstName = firstName;
-                identityUser.LastName = lastName;
+                identityUser = existingUser;
+                if (!string.IsNullOrEmpty(firstName) && firstName != "Investor")
+                {
+                    identityUser.FirstName = firstName;
+                    identityUser.LastName = lastName;
+                }
+                identityUser.PhoneNumber = string.IsNullOrEmpty(dto.mobile) ? identityUser.PhoneNumber : dto.mobile;
+                identityUser.IsActive = dto.status != "inactive";
+                await _userManager.UpdateAsync(identityUser);
             }
-            identityUser.PhoneNumber = string.IsNullOrEmpty(dto.mobile) ? identityUser.PhoneNumber : dto.mobile;
-            identityUser.IsActive = dto.status != "inactive";
-            await _userManager.UpdateAsync(identityUser);
+            else
+            {
+                return new InvestorRegistrationResponse
+                {
+                    IsSuccess = false,
+                    ErrorMessage = $"An investor account with email '{dto.email}' already exists. Please choose 'Select Existing Investor' to allocate an additional investment."
+                };
+            }
         }
         else
         {
+            // If phone number is supplied, check for duplicate phone number across existing users
+            if (!string.IsNullOrEmpty(inputCleanPhone))
+            {
+                var allExistingUsers = await _context.Users.AsNoTracking().ToListAsync();
+                var duplicatePhoneUser = allExistingUsers.FirstOrDefault(u =>
+                    !string.IsNullOrWhiteSpace(u.PhoneNumber) &&
+                    NormalizePhone(u.PhoneNumber) == inputCleanPhone &&
+                    !string.Equals(u.Email, inputEmail, StringComparison.OrdinalIgnoreCase));
+
+                if (duplicatePhoneUser != null)
+                {
+                    return new InvestorRegistrationResponse
+                    {
+                        IsSuccess = false,
+                        ErrorMessage = $"Mobile number '{dto.mobile}' is already registered to another investor ({duplicatePhoneUser.Email})."
+                    };
+                }
+            }
+
             // Create brand new Identity user
             identityUser = new ApplicationUser
             {
